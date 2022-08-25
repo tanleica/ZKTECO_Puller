@@ -1,0 +1,3 @@
+Retrieving the COM class factory for component with CLSID {00853A19-BD51-419B-9269-2DABE57EB61F} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
+
+Resolve: https://stackoverflow.com/questions/52923806/error-when-inserting-finger-print-data-into-database-table/52925455#52925455
