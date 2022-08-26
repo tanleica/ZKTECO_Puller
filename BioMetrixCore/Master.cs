@@ -21,6 +21,7 @@ namespace BioMetrixCore
 
         private readonly List<ProgressBarItem> progressBars = new List<ProgressBarItem>();
         private readonly List<LabelItem> labels = new List<LabelItem>();
+        private readonly List<int> threadColors = new List<int>();
 
         public Master()
         {
@@ -30,7 +31,8 @@ namespace BioMetrixCore
             {
                 //Crypto.EncryptConnectionString();
                 machines = JsonConvert.DeserializeObject<List<Machine>>(File.ReadAllText(@"machines.json")).ToList();
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
             }
@@ -77,16 +79,15 @@ namespace BioMetrixCore
         private void pnlHeader_Paint(object sender, PaintEventArgs e)
         { UniversalStatic.DrawLineInFooter(pnlHeader, Color.FromArgb(204, 204, 204), 2); }
 
-        private void PullDataToDbThread(string ipAddress, int port, int machineNumber, int Index)
+        private ThreadResult PullDataToDbThread(string ipAddress, int port, int machineNumber, int index)
         {
             try
             {
-
-                Label label = labels[Index].Label;
-                ProgressBar progressBar = progressBars[Index].ProgressBar;
+                Label label = labels[index].Label;
+                ProgressBar progressBar = progressBars[index].ProgressBar;
 
                 label.Invoke(new Action(() => label.Text = string.Format("Bắt đầu làm việc với máy {0} ({1})", machineNumber, ipAddress)));
-                progressBar.Invoke(new Action(() => progressBar.SetState(1)));
+                progressBar.Invoke(new Action(() => progressBar.SetState(threadColors[index])));
 
                 // STEP 1
                 // check ip
@@ -95,7 +96,7 @@ namespace BioMetrixCore
                 {
                     label.Invoke(new Action(() => label.Text = string.Format("Địa chỉ IP của máy {0} ({1})không hợp lệ", machineNumber, ipAddress)));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                    return;
+                    return new ThreadResult { Machine = machines[index], IsSuccess = false };
                 }
                 progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 1));
 
@@ -106,7 +107,7 @@ namespace BioMetrixCore
                 {
                     label.Invoke(new Action(() => label.Text = string.Format("Không thể ping được tới máy {0} ({1}), vui lòng kiểm tra hạ tầng", machineNumber, ipAddress)));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                    return;
+                    return new ThreadResult { Machine = machines[index], IsSuccess = false };
                 }
                 progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 2));
 
@@ -169,17 +170,23 @@ namespace BioMetrixCore
                     }
                     progressBar.Invoke(new Action(() => progressBar.Value = 100));
                     label.Invoke(new Action(() => label.Text = string.Format("Cập nhật dữ liệu thành công cho máy {0} ({1})", machineNumber, ipAddress)));
-
+                    return new ThreadResult { Machine = machines[index], IsSuccess = true };
                 }
                 else
                 {
                     label.Invoke(new Action(() => label.Text = string.Format("Không thể kết nối tới máy {0} ({1}). Có thể đây không phải là máy chấm công ZKTeco", machineNumber, ipAddress)));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                    return;
+                    return new ThreadResult { Machine = machines[index], IsSuccess = false };
                 }
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
-                File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, ex.Message));
+                try
+                {
+                    File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, ex.Message));
+                }
+                catch { }
+                return new ThreadResult { Machine = machines[index], IsSuccess = false };
             }
         }
 
@@ -188,6 +195,7 @@ namespace BioMetrixCore
 
             progressBars.Clear();
             labels.Clear();
+            threadColors.Clear();
 
             // Delete all existing ProgressBars and related Labels
             List<Control> controlList = new List<Control>();
@@ -231,37 +239,53 @@ namespace BioMetrixCore
                 });
                 panel2.Controls.Add(progressBar);
                 panel2.Controls.Add(label);
+                threadColors.Add(1); // default color is Green
                 i++;
             }
+            this.Height = panel2.Top + (53 + 25) * i;
 
             i = 0;
             foreach (var item in machines)
             {
-                if (i >= machines.Count) break;
                 // When each thread starts, it is imposible to wait (like async javascript code)
                 string ipAddress = machines[i].IpAddress;
                 int port = machines[i].Port;
                 int machineNumber = machines[i].MachineNumber;
-                Console.WriteLine("i = " + i);
 
-                Thread t = new Thread(() =>
-                {
-                    PullDataToDbThread(ipAddress, port, machineNumber, i);
-                });
-                t.IsBackground = true;
-                t.Start();
+                StartThreat(machines[i], i);
 
-                // Wait for thread starts before i changes
+                // tannv: Wait for current thread starts before i changes
                 Thread.Sleep(200);
-
                 i++;
             }
+        }
 
+        private void StartThreat(Machine machine, int i)
+        {
+            bool autoRepeat = ConfigurationManager.AppSettings["autoRepeatWhenFails"] == "True";
+            ThreadResult threadResult;
+            new Thread(() =>
+                {
+                    threadResult = PullDataToDbThread(machine.IpAddress, machine.Port, machine.MachineNumber, i);
+                    Console.WriteLine("Process for machine {0} ({1}) return {2}", machine.MachineNumber, machine.IpAddress, threadResult.IsSuccess);
+                    // Tannv: Using percusive method to run a new thread
+                    if (autoRepeat && !threadResult.IsSuccess)
+                    {
+                        threadColors[i] = 3;
+                        Thread.Sleep(5000);
+                        StartThreat(machine, i);
+                    }
+                }).Start();
         }
 
         private void Master_Load(object sender, EventArgs e)
         {
             lblHeader.Text += Constants.AppVersion;
+            string autoStart = ConfigurationManager.AppSettings["autoStart"];
+            if (autoStart == "True")
+            {
+                PullDataToDb_Click(sender, e);
+            }
         }
 
         private void btnCheckConfigSecurity_Click(object sender, EventArgs e)
@@ -271,10 +295,17 @@ namespace BioMetrixCore
             if (connstrings.SectionInformation.IsProtected)
             {
                 MessageBox.Show("The App.config file is protected");
-            } else
+            }
+            else
             {
                 MessageBox.Show("The App.config file is not secured!!!");
             }
+        }
+
+        private void btnSettings_Click(object sender, EventArgs e)
+        {
+            Settings settings = new Settings();
+            settings.ShowDialog();
         }
     }
 }
