@@ -22,6 +22,7 @@ namespace BioMetrixCore
         private readonly List<ProgressBarItem> progressBars = new List<ProgressBarItem>();
         private readonly List<LabelItem> labels = new List<LabelItem>();
         private readonly List<int> threadColors = new List<int>();
+        private static object _lockObject = new object();
 
         public Master()
         {
@@ -181,11 +182,10 @@ namespace BioMetrixCore
             }
             catch (Exception ex)
             {
-                try
+                lock (_lockObject)
                 {
                     File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, ex.Message));
                 }
-                catch { }
                 return new ThreadResult { Machine = machines[index], IsSuccess = false };
             }
         }
@@ -264,7 +264,7 @@ namespace BioMetrixCore
         {
             bool autoRepeat = ConfigurationManager.AppSettings["autoRepeatWhenFails"] == "True";
             ThreadResult threadResult;
-            new Thread(() =>
+            Thread t =             new Thread(() =>
                 {
                     threadResult = PullDataToDbThread(machine.IpAddress, machine.Port, machine.MachineNumber, i);
                     Console.WriteLine("Process for machine {0} ({1}) return {2}", machine.MachineNumber, machine.IpAddress, threadResult.IsSuccess);
@@ -272,10 +272,13 @@ namespace BioMetrixCore
                     if (autoRepeat && !threadResult.IsSuccess)
                     {
                         threadColors[i] = 3;
-                        Thread.Sleep(5000);
+                        Random rnd = new Random();
+                        Thread.Sleep(rnd.Next(2, 5)*1000);
                         StartThreat(machine, i);
                     }
-                }).Start();
+                });
+            t.Name = "MachineNumber: " + machine.MachineNumber;
+            t.Start();
         }
 
         private void Master_Load(object sender, EventArgs e)
