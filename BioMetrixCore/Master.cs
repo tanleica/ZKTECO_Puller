@@ -23,6 +23,7 @@ namespace BioMetrixCore
         private readonly List<LabelItem> labels = new List<LabelItem>();
         private readonly List<int> threadColors = new List<int>();
         private static object _lockObject = new object();
+        private static int autoRepeatTimer;
 
         public Master()
         {
@@ -32,6 +33,10 @@ namespace BioMetrixCore
             {
                 //Crypto.EncryptConnectionString();
                 machines = JsonConvert.DeserializeObject<List<Machine>>(File.ReadAllText(@"machines.json")).ToList();
+
+                string autoRepeatTimerStr = ConfigurationManager.AppSettings["autoRepeatTimer"];
+                autoRepeatTimer = autoRepeatTimerStr == null ? 15 : (int)Convert.ToDecimal(autoRepeatTimer);
+
             }
             catch (Exception ex)
             {
@@ -263,22 +268,49 @@ namespace BioMetrixCore
         private void StartThreat(Machine machine, int i)
         {
             bool autoRepeat = ConfigurationManager.AppSettings["autoRepeatWhenFails"] == "True";
+
             ThreadResult threadResult;
-            Thread t =             new Thread(() =>
+            ThreadStart threadStart = () =>
+            {
+                threadResult = PullDataToDbThread(machine.IpAddress, machine.Port, machine.MachineNumber, i);
+                Console.WriteLine("Process for machine {0} ({1}) return {2}", machine.MachineNumber, machine.IpAddress, threadResult.IsSuccess);
+                // Tannv: Using percusive method to run a new thread
+                if (autoRepeat && !threadResult.IsSuccess)
                 {
-                    threadResult = PullDataToDbThread(machine.IpAddress, machine.Port, machine.MachineNumber, i);
-                    Console.WriteLine("Process for machine {0} ({1}) return {2}", machine.MachineNumber, machine.IpAddress, threadResult.IsSuccess);
-                    // Tannv: Using percusive method to run a new thread
-                    if (autoRepeat && !threadResult.IsSuccess)
-                    {
-                        threadColors[i] = 3;
-                        Random rnd = new Random();
-                        Thread.Sleep(rnd.Next(2, 5)*1000);
-                        StartThreat(machine, i);
-                    }
-                });
+                    threadColors[i] = 3;
+                    Random rnd = new Random();
+                    Thread.Sleep(rnd.Next(2, 5) * 1000);
+                    StartThreat(machine, i);
+                }
+            };
+
+            Thread t = new Thread(threadStart);
             t.Name = "MachineNumber: " + machine.MachineNumber;
+            SetTimer(t);
             t.Start();
+        }
+
+        private static void SetTimer(Thread t)
+        {
+            // Create a timer with a two second interval.
+            System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
+            // Hook up the Elapsed event for the timer. 
+            timer.Interval = autoRepeatTimer;
+            timer.Tag = t;
+            timer.Tick += new EventHandler(TimerEventProcessor);
+            timer.Start();
+        }
+
+        // This is the method to run when the timer is raised   .
+        private static void TimerEventProcessor(Object myObject, EventArgs myEventArgs)
+        {
+            System.Reflection.PropertyInfo pi = myObject.GetType().GetProperty("Tag");
+            Thread t = (Thread)(pi.GetValue(myObject, null));
+            if (t.ThreadState == ThreadState.Running)
+            {
+                Console.WriteLine($"Thread {t.Name} is being aborted!");
+                t.Abort();
+            }
         }
 
         private void Master_Load(object sender, EventArgs e)
