@@ -9,6 +9,10 @@ using System.ComponentModel;
 using System.IO;
 using Newtonsoft.Json;
 using System.Linq;
+using Timer = System.Windows.Forms.Timer;
+using ProgressBar = System.Windows.Forms.ProgressBar;
+using Label = System.Windows.Forms.Label;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.TrackBar;
 
 namespace BioMetrixCore
 {
@@ -18,12 +22,12 @@ namespace BioMetrixCore
     {
         public ZkemClient objZkeeper;
         private readonly List<Machine> machines;
-
         private readonly List<ProgressBarItem> progressBars = new List<ProgressBarItem>();
         private readonly List<LabelItem> labels = new List<LabelItem>();
         private readonly List<int> threadColors = new List<int>();
         private static object _lockObject = new object();
         private static int autoRepeatTimer;
+        private static int count = 0;
 
         public Master()
         {
@@ -33,10 +37,8 @@ namespace BioMetrixCore
             {
                 //Crypto.EncryptConnectionString();
                 machines = JsonConvert.DeserializeObject<List<Machine>>(File.ReadAllText(@"machines.json")).ToList();
-
                 string autoRepeatTimerStr = ConfigurationManager.AppSettings["autoRepeatTimer"];
-                autoRepeatTimer = autoRepeatTimerStr == null ? 15 : (int)Convert.ToDecimal(autoRepeatTimer);
-
+                autoRepeatTimer = autoRepeatTimerStr == null ? 15000 : (int)Convert.ToDecimal(autoRepeatTimerStr);
             }
             catch (Exception ex)
             {
@@ -85,12 +87,41 @@ namespace BioMetrixCore
         private void pnlHeader_Paint(object sender, PaintEventArgs e)
         { UniversalStatic.DrawLineInFooter(pnlHeader, Color.FromArgb(204, 204, 204), 2); }
 
-        private ThreadResult PullDataToDbThread(string ipAddress, int port, int machineNumber, int index)
+        private ThreadResult PullDataToDbThread(CancellationToken token, string ipAddress, int port, int machineNumber, int index)
         {
+            Label label = labels[index].Label;
+            ProgressBar progressBar = progressBars[index].ProgressBar;
+
+            /* For testing only
+            if (machineNumber >= 2 && machineNumber <= 5)
+            {
+                progressBar.Invoke(new Action(() => progressBar.Value = 100));
+                label.Invoke(new Action(() => label.Text = string.Format("Cập nhật dữ liệu thành công cho máy {0} ({1})", machineNumber, ipAddress)));
+                return new ThreadResult { Machine = machines[index], IsSuccess = true };
+            }
+            */
+
+            // Cancelation will raise if current thread gets Timeout*********************************
+
+            if (token.IsCancellationRequested)
+            {
+                label.Invoke(new Action(() => label.Text = string.Format("Thời gian chờ đợi máy {0} ({1}) đã hết!", machineNumber, ipAddress)));
+                progressBar.Invoke(new Action(() => progressBar.SetState(threadColors[index])));
+                Console.WriteLine("In iteration {0}, cancellation has been requested...", ipAddress);
+                return new ThreadResult(machines[index], false, true);
+            }
+            //***************************************************************************************
+
             try
             {
-                Label label = labels[index].Label;
-                ProgressBar progressBar = progressBars[index].ProgressBar;
+
+                token.Register(() =>
+                {
+                    label.Invoke(new Action(() => label.Text = string.Format("Thời gian chờ đợi máy {0} ({1}) đã hết!", machineNumber, ipAddress)));
+                    progressBar.Invoke(new Action(() => progressBar.SetState(threadColors[index])));
+                    Console.WriteLine("In iteration {0}, cancellation has been requested...", ipAddress);
+                    //throw new Exception("Cancellation has been requested");
+                });
 
                 label.Invoke(new Action(() => label.Text = string.Format("Bắt đầu làm việc với máy {0} ({1})", machineNumber, ipAddress)));
                 progressBar.Invoke(new Action(() => progressBar.SetState(threadColors[index])));
@@ -102,7 +133,7 @@ namespace BioMetrixCore
                 {
                     label.Invoke(new Action(() => label.Text = string.Format("Địa chỉ IP của máy {0} ({1})không hợp lệ", machineNumber, ipAddress)));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                    return new ThreadResult { Machine = machines[index], IsSuccess = false };
+                    return new ThreadResult(machines[index], false);
                 }
                 progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 1));
 
@@ -113,7 +144,7 @@ namespace BioMetrixCore
                 {
                     label.Invoke(new Action(() => label.Text = string.Format("Không thể ping được tới máy {0} ({1}), vui lòng kiểm tra hạ tầng", machineNumber, ipAddress)));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                    return new ThreadResult { Machine = machines[index], IsSuccess = false };
+                    return new ThreadResult(machines[index], false);
                 }
                 progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 2));
 
@@ -176,13 +207,14 @@ namespace BioMetrixCore
                     }
                     progressBar.Invoke(new Action(() => progressBar.Value = 100));
                     label.Invoke(new Action(() => label.Text = string.Format("Cập nhật dữ liệu thành công cho máy {0} ({1})", machineNumber, ipAddress)));
-                    return new ThreadResult { Machine = machines[index], IsSuccess = true };
+                    return new ThreadResult(machines[index], true);
                 }
                 else
                 {
                     label.Invoke(new Action(() => label.Text = string.Format("Không thể kết nối tới máy {0} ({1}). Có thể đây không phải là máy chấm công ZKTeco", machineNumber, ipAddress)));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                    return new ThreadResult { Machine = machines[index], IsSuccess = false };
+                    Thread.Sleep(2000);
+                    return new ThreadResult(machines[index], false);
                 }
             }
             catch (Exception ex)
@@ -191,7 +223,7 @@ namespace BioMetrixCore
                 {
                     File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, ex.Message));
                 }
-                return new ThreadResult { Machine = machines[index], IsSuccess = false };
+                return new ThreadResult(machines[index], false);
             }
         }
 
@@ -201,6 +233,15 @@ namespace BioMetrixCore
             progressBars.Clear();
             labels.Clear();
             threadColors.Clear();
+            btnSettings.Focus();
+            btnPullDataToDb.Enabled = false;
+
+            Label labelTimer = new Label();
+            Timer timer = new Timer();
+            timer.Interval = 1000;
+            timer.Tick += Timer_Tick;
+            timer.Start();
+
 
             // Delete all existing ProgressBars and related Labels
             List<Control> controlList = new List<Control>();
@@ -211,7 +252,7 @@ namespace BioMetrixCore
 
             foreach (var item in controlList)
             {
-                Console.WriteLine(item.GetType().ToString() + "\n");
+                // Console.WriteLine(item.GetType().ToString() + "\n");
                 if (item.GetType().ToString() == "System.Windows.Forms.ProgressBar" || item.GetType().ToString() == "System.Windows.Forms.Label")
                 {
                     panel2.Controls.Remove(item);
@@ -224,13 +265,13 @@ namespace BioMetrixCore
                 ProgressBar progressBar = new ProgressBar()
                 {
                     Location = new Point(4, 53 * (i + 1)),
-                    Width = panel2.Width - 8
+                    Width = panel2.Width - 26
                 };
                 Label label = new Label()
                 {
                     Location = new Point(4, 53 * (i + 1) + 25),
                     Text = "Label " + i.ToString(),
-                    Width = panel2.Width - 8
+                    Width = panel2.Width - 26
                 };
                 progressBars.Add(new ProgressBarItem()
                 {
@@ -247,7 +288,7 @@ namespace BioMetrixCore
                 threadColors.Add(1); // default color is Green
                 i++;
             }
-            this.Height = panel2.Top + (53 + 25) * i;
+            //this.Height = panel2.Top + (53 + 25) * i;
 
             i = 0;
             foreach (var item in machines)
@@ -259,58 +300,100 @@ namespace BioMetrixCore
 
                 StartThreat(machines[i], i);
 
-                // tannv: Wait for current thread starts before i changes
-                Thread.Sleep(200);
+                // tanleica: Wait for current thread starts before i changes
+                Thread.Sleep(100);
                 i++;
             }
+        }
+
+        private void Timer_Tick(object sender, EventArgs e)
+        {
+            ++count;
+            btnPullDataToDb.Text = count.ToString();
         }
 
         private void StartThreat(Machine machine, int i)
         {
             bool autoRepeat = ConfigurationManager.AppSettings["autoRepeatWhenFails"] == "True";
+            CancellationTokenSource cts = new CancellationTokenSource();
+            Timer timer = null;
 
             ThreadResult threadResult;
+
             ThreadStart threadStart = () =>
             {
-                threadResult = PullDataToDbThread(machine.IpAddress, machine.Port, machine.MachineNumber, i);
-                Console.WriteLine("Process for machine {0} ({1}) return {2}", machine.MachineNumber, machine.IpAddress, threadResult.IsSuccess);
-                // Tannv: Using percusive method to run a new thread
-                if (autoRepeat && !threadResult.IsSuccess)
+                threadResult = PullDataToDbThread(cts.Token, machine.IpAddress, machine.Port, machine.MachineNumber, i);
+                if (threadResult.Machine.MachineNumber == 1 | threadResult.Machine.MachineNumber == 8 | threadResult.Machine.MachineNumber == 9)
+                    Console.WriteLine("Process for machine {0} ({1}) return {2}", machine.MachineNumber, machine.IpAddress, threadResult.IsSuccess);
+                /*
+                lock(_lockObject)
                 {
-                    threadColors[i] = 3;
-                    Random rnd = new Random();
-                    Thread.Sleep(rnd.Next(2, 5) * 1000);
-                    StartThreat(machine, i);
+                    File.AppendAllText(@"Log.txt", string.Format("Process for machine {0} ({1}) return {2}\n", machine.MachineNumber, machine.IpAddress, threadResult.IsSuccess));
+                }
+                */
+                if (threadResult.IsSuccess)
+                {
+                    // Free the timer if current thread has done
+                    if (timer != null)
+                    {
+                        timer.Stop();
+                        timer.Dispose();
+                    }
+                    lock (_lockObject)
+                    {
+                        File.AppendAllText(@"Log.txt", string.Format($"SUCCESS! Timer for {threadResult.Machine.MachineNumber} ({threadResult.Machine.IpAddress}) was disposed!"));
+                    }
+                }
+                else
+                {
+                    // tanleica: Using percusive method to run a new thread
+                    if (autoRepeat)
+                    {
+                        threadColors[i] = 3;
+                        Random rnd = new Random();
+                        Thread.Sleep(rnd.Next(2, 5) * 1000);
+                        StartThreat(machine, i);
+                    }
                 }
             };
 
             Thread t = new Thread(threadStart);
             t.Name = "MachineNumber: " + machine.MachineNumber;
-            SetTimer(t);
+            t.IsBackground = false;
+            timer = SetTimer(t, cts);
+            timer.Start();
             t.Start();
         }
 
-        private static void SetTimer(Thread t)
+        private static Timer SetTimer(Thread t, CancellationTokenSource cts)
         {
             // Create a timer with a two second interval.
-            System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
+            Timer timer = new Timer();
             // Hook up the Elapsed event for the timer. 
             timer.Interval = autoRepeatTimer;
-            timer.Tag = t;
+            // We can tag an object to the timer
+            timer.Tag = new ThreadStartInfo(t, cts);
             timer.Tick += new EventHandler(TimerEventProcessor);
-            timer.Start();
+            return timer;
         }
 
         // This is the method to run when the timer is raised   .
         private static void TimerEventProcessor(Object myObject, EventArgs myEventArgs)
         {
+            // Get the tag of the timer using Reflection
             System.Reflection.PropertyInfo pi = myObject.GetType().GetProperty("Tag");
-            Thread t = (Thread)(pi.GetValue(myObject, null));
-            if (t.ThreadState == ThreadState.Running)
+            ThreadStartInfo tsi = (ThreadStartInfo)(pi.GetValue(myObject, null));
+
+            lock (_lockObject)
             {
-                Console.WriteLine($"Thread {t.Name} is being aborted!");
-                t.Abort();
+                File.AppendAllText(@"Log.txt", $"Thread {tsi.Thread.Name} is being aborted!\n");
             }
+            // token will raised in the delagate ("PullDataToDbThread")
+            tsi.CancellationTokenSource.Cancel(true);
+            //tsi.CancellationTokenSource.Dispose();
+            Timer timer = (Timer)myObject;
+            timer.Stop();
+            timer.Dispose();
         }
 
         private void Master_Load(object sender, EventArgs e)
@@ -341,6 +424,55 @@ namespace BioMetrixCore
         {
             Settings settings = new Settings();
             settings.ShowDialog();
+        }
+
+        private void Master_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            Environment.Exit(1);
+        }
+
+        private void Master_Resize(object sender, EventArgs e)
+        {
+            int newWidth = panel2.Width - 26;
+            foreach (var item in panel2.Controls)
+            {
+                // Console.WriteLine(item.GetType().ToString() + "\n");
+                if (item.GetType().ToString() == "System.Windows.Forms.ProgressBar")
+                {
+                    ProgressBar progressBar = (ProgressBar)item;
+                    progressBar.Width = newWidth;
+                }
+                else if (item.GetType().ToString() == "System.Windows.Forms.Label")
+                {
+                    Label label = (Label)item;
+                    label.Width = newWidth;
+                }
+            }
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            // The Simple class controls access to the token source.
+            CancellationTokenSource cts = new CancellationTokenSource();
+            Thread t2 = new Thread(new ParameterizedThreadStart(Puller.StaticMethod));
+            // Start the worker thread and pass it the token.
+            Timer timer = new Timer();
+            timer.Interval = 5000;
+            timer.Tag = new ThreadStartInfo(t2, cts);
+            timer.Tick += Timer_Tick1;
+            timer.Start();
+            t2.Start(cts.Token);
+        }
+
+        private void Timer_Tick1(object sender, EventArgs e)
+        {
+            // Get the tag of the timer using Reflection
+            System.Reflection.PropertyInfo pi = sender.GetType().GetProperty("Tag");
+            ThreadStartInfo tsi = (ThreadStartInfo)(pi.GetValue(sender, null));
+            tsi.CancellationTokenSource.Cancel();
+            Timer timer = (Timer)sender;
+            timer.Stop();
+            tsi.CancellationTokenSource.Dispose();
         }
     }
 }

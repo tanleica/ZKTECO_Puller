@@ -34,7 +34,8 @@ namespace BioMetrixCore
             string autoRepeatTimer = ConfigurationManager.AppSettings["autoRepeatTimer"];
             checkBoxAutoStart.Checked = autoStart == "True" ? true : false;
             checkBoxRepeatWhenFails.Checked = autoRepeatWhenFails == "True" ? true : false;
-            numericUpDownTimer.Value = autoRepeatTimer == null? 15 : (int)Convert.ToDecimal(autoRepeatTimer);
+            // Timeout value: minimum = 15000 (15 seconds), maximum = 3600000 (1 hour)
+            numericUpDownTimer.Value = autoRepeatTimer == null? 15000 : (int)Convert.ToDecimal(autoRepeatTimer);
             ConfigurationManager.RefreshSection("appSettings");
         }
     }

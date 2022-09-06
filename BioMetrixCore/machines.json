@@ -1,7 +1,92 @@
 [
-	{
-		"MachineNumber": 1,
-		"IpAddress": "192.168.60.222",
-		"Port": 4370
-	}
+  {
+    "MachineNumber": 1,
+    "IpAddress": "192.168.60.222",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 2,
+    "IpAddress": "192.168.60.223",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 3,
+    "IpAddress": "192.168.60.224",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 4,
+    "IpAddress": "192.168.60.225",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 5,
+    "IpAddress": "192.168.60.226",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 6,
+    "IpAddress": "192.168.60.227",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 7,
+    "IpAddress": "192.168.60.228",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 8,
+    "IpAddress": "192.168.60.229",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 9,
+    "IpAddress": "192.168.60.230",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 10,
+    "IpAddress": "192.168.60.231",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 11,
+    "IpAddress": "192.168.60.232",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 12,
+    "IpAddress": "192.168.60.233",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 13,
+    "IpAddress": "192.168.60.234",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 14,
+    "IpAddress": "192.168.60.235",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 15,
+    "IpAddress": "192.168.60.236",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 16,
+    "IpAddress": "192.168.60.237",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 17,
+    "IpAddress": "192.168.60.238",
+    "Port": 4370
+  },
+  {
+    "MachineNumber": 18,
+    "IpAddress": "192.168.60.239",
+    "Port": 4370
+  }
 ]

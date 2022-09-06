@@ -34,10 +34,11 @@
             this.lblHeader = new System.Windows.Forms.Label();
             this.flowLayoutPanel1 = new System.Windows.Forms.FlowLayoutPanel();
             this.btnPullDataToDb = new System.Windows.Forms.Button();
-            this.btnCheckConfigSecurity = new System.Windows.Forms.Button();
             this.btnSettings = new System.Windows.Forms.Button();
+            this.btnCheckConfigSecurity = new System.Windows.Forms.Button();
             this.panel1 = new System.Windows.Forms.Panel();
             this.panel2 = new System.Windows.Forms.Panel();
+            this.button1 = new System.Windows.Forms.Button();
             this.pnlHeader.SuspendLayout();
             this.flowLayoutPanel1.SuspendLayout();
             this.panel1.SuspendLayout();
@@ -83,6 +84,7 @@
             this.flowLayoutPanel1.Controls.Add(this.btnPullDataToDb);
             this.flowLayoutPanel1.Controls.Add(this.btnSettings);
             this.flowLayoutPanel1.Controls.Add(this.btnCheckConfigSecurity);
+            this.flowLayoutPanel1.Controls.Add(this.button1);
             this.flowLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Top;
             this.flowLayoutPanel1.Location = new System.Drawing.Point(0, 0);
             this.flowLayoutPanel1.Name = "flowLayoutPanel1";
@@ -99,6 +101,16 @@
             this.btnPullDataToDb.UseVisualStyleBackColor = true;
             this.btnPullDataToDb.Click += new System.EventHandler(this.PullDataToDb_Click);
             // 
+            // btnSettings
+            // 
+            this.btnSettings.Location = new System.Drawing.Point(141, 3);
+            this.btnSettings.Name = "btnSettings";
+            this.btnSettings.Size = new System.Drawing.Size(75, 41);
+            this.btnSettings.TabIndex = 897;
+            this.btnSettings.Text = "Settings";
+            this.btnSettings.UseVisualStyleBackColor = true;
+            this.btnSettings.Click += new System.EventHandler(this.btnSettings_Click);
+            // 
             // btnCheckConfigSecurity
             // 
             this.btnCheckConfigSecurity.Dock = System.Windows.Forms.DockStyle.Right;
@@ -110,16 +122,6 @@
             this.btnCheckConfigSecurity.Text = "Check Config Security";
             this.btnCheckConfigSecurity.UseVisualStyleBackColor = true;
             this.btnCheckConfigSecurity.Click += new System.EventHandler(this.btnCheckConfigSecurity_Click);
-            // 
-            // btnSettings
-            // 
-            this.btnSettings.Location = new System.Drawing.Point(141, 3);
-            this.btnSettings.Name = "btnSettings";
-            this.btnSettings.Size = new System.Drawing.Size(75, 41);
-            this.btnSettings.TabIndex = 897;
-            this.btnSettings.Text = "Settings";
-            this.btnSettings.UseVisualStyleBackColor = true;
-            this.btnSettings.Click += new System.EventHandler(this.btnSettings_Click);
             // 
             // panel1
             // 
@@ -135,11 +137,22 @@
             // 
             // panel2
             // 
+            this.panel2.AutoScroll = true;
             this.panel2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.panel2.Location = new System.Drawing.Point(0, 47);
             this.panel2.Name = "panel2";
             this.panel2.Size = new System.Drawing.Size(612, 277);
             this.panel2.TabIndex = 1;
+            // 
+            // button1
+            // 
+            this.button1.Location = new System.Drawing.Point(368, 3);
+            this.button1.Name = "button1";
+            this.button1.Size = new System.Drawing.Size(178, 38);
+            this.button1.TabIndex = 898;
+            this.button1.Text = "SAMPLE CODE FOR USE";
+            this.button1.UseVisualStyleBackColor = true;
+            this.button1.Click += new System.EventHandler(this.button1_Click);
             // 
             // Master
             // 
@@ -155,7 +168,9 @@
             this.Name = "Master";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "HiStaff BioMetrix Tool";
+            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.Master_FormClosed);
             this.Load += new System.EventHandler(this.Master_Load);
+            this.Resize += new System.EventHandler(this.Master_Resize);
             this.pnlHeader.ResumeLayout(false);
             this.pnlHeader.PerformLayout();
             this.flowLayoutPanel1.ResumeLayout(false);
@@ -176,6 +191,7 @@
         private System.Windows.Forms.Button btnCheckConfigSecurity;
         private System.Windows.Forms.Panel panel2;
         private System.Windows.Forms.Button btnSettings;
+        private System.Windows.Forms.Button button1;
     }
 }
 

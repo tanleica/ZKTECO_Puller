@@ -69,12 +69,27 @@
             // 
             // numericUpDownTimer
             // 
+            this.numericUpDownTimer.Increment = new decimal(new int[] {
+            1000,
+            0,
+            0,
+            0});
             this.numericUpDownTimer.Location = new System.Drawing.Point(57, 134);
+            this.numericUpDownTimer.Maximum = new decimal(new int[] {
+            3600000,
+            0,
+            0,
+            0});
+            this.numericUpDownTimer.Minimum = new decimal(new int[] {
+            5000,
+            0,
+            0,
+            0});
             this.numericUpDownTimer.Name = "numericUpDownTimer";
             this.numericUpDownTimer.Size = new System.Drawing.Size(120, 20);
             this.numericUpDownTimer.TabIndex = 3;
             this.numericUpDownTimer.Value = new decimal(new int[] {
-            5,
+            15000,
             0,
             0,
             0});
@@ -84,9 +99,9 @@
             this.label1.AutoSize = true;
             this.label1.Location = new System.Drawing.Point(61, 114);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(96, 13);
+            this.label1.Size = new System.Drawing.Size(131, 13);
             this.label1.TabIndex = 4;
-            this.label1.Text = "Repeat Timer (in s)";
+            this.label1.Text = "Repeat Timer (in seconds)";
             // 
             // Settings
             // 
