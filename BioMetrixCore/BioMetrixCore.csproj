@@ -107,6 +107,7 @@
     <Compile Include="Info\ModifyProgressBarColor.cs" />
     <Compile Include="Info\ProgressBarItem.cs" />
     <Compile Include="Info\Puller.cs" />
+    <Compile Include="Info\ThreadParameters.cs" />
     <Compile Include="Info\ThreadResult.cs" />
     <Compile Include="Info\ThreadStartInfo.cs" />
     <Compile Include="Info\UserIDInfo.cs" />

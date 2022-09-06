@@ -1,4 +1,6 @@
-﻿namespace BioMetrixCore.Info
+﻿using System.Threading;
+
+namespace BioMetrixCore.Info
 {
     public class ThreadResult
     {
