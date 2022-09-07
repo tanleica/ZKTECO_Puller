@@ -6,5 +6,6 @@ namespace BioMetrixCore.Info
     {
         public int Index { get; set; }
         public Label Label { get; set; }
+        public int? Count { get; set; }
     }
 }

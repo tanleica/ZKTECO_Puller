@@ -22,10 +22,13 @@ namespace BioMetrixCore
         private readonly List<Machine> machines;
         private readonly List<ProgressBarItem> progressBars = new List<ProgressBarItem>();
         private readonly List<LabelItem> labels = new List<LabelItem>();
+        private readonly List<LabelItem> timerLabels = new List<LabelItem>();
         private readonly List<int> threadColors = new List<int>();
+        private static Master frm;
         private static object _lockObject = new object();
         private static int autoRepeatTimer;
-        private static int count = 0;
+        bool autoRepeat;
+        const int counterWidth = 50;
 
         public Master()
         {
@@ -33,10 +36,11 @@ namespace BioMetrixCore
             ShowStatusBar(string.Empty, true);
             try
             {
-                //Crypto.EncryptConnectionString();
+                frm = this;
                 machines = JsonConvert.DeserializeObject<List<Machine>>(File.ReadAllText(@"machines.json")).ToList();
                 string autoRepeatTimerStr = ConfigurationManager.AppSettings["autoRepeatTimer"];
                 autoRepeatTimer = autoRepeatTimerStr == null ? 15000 : (int)Convert.ToDecimal(autoRepeatTimerStr);
+                autoRepeat = ConfigurationManager.AppSettings["autoRepeatWhenFails"] == "True";
             }
             catch (Exception ex)
             {
@@ -90,138 +94,172 @@ namespace BioMetrixCore
             Label label = labels[index].Label;
             ProgressBar progressBar = progressBars[index].ProgressBar;
 
-            while (!ct.IsCancellationRequested)
+            try
             {
-                try
+                //while (!ct.IsCancellationRequested)
+                //{
+                //    try
+                //    {
+
+                label.Invoke(new Action(() => label.Text = string.Format("Bắt đầu làm việc với máy {0} ({1})", machineNumber, ipAddress)));
+                progressBar.Invoke(new Action(() => progressBar.SetState(threadColors[index])));
+
+                // STEP 1
+                // check ip
+                bool isValidIpA = UniversalStatic.ValidateIP(ipAddress);
+                if (!isValidIpA)
                 {
+                    label.Invoke(new Action(() => label.Text = string.Format("Địa chỉ IP của máy {0} ({1})không hợp lệ", machineNumber, ipAddress)));
+                    progressBar.Invoke(new Action(() => progressBar.SetState(2)));
+                    Thread.Sleep(2000);
+                    return new ThreadResult(machines[index], false);
+                }
+                progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 1));
 
-                    label.Invoke(new Action(() => label.Text = string.Format("Bắt đầu làm việc với máy {0} ({1})", machineNumber, ipAddress)));
-                    progressBar.Invoke(new Action(() => progressBar.SetState(threadColors[index])));
+                // STEP 2
+                // ping ip
+                isValidIpA = UniversalStatic.PingTheDevice(ipAddress);
+                if (!isValidIpA)
+                {
+                    label.Invoke(new Action(() => label.Text = string.Format("Không thể ping được tới máy {0} ({1}), vui lòng kiểm tra hạ tầng", machineNumber, ipAddress)));
+                    progressBar.Invoke(new Action(() => progressBar.SetState(2)));
+                    Thread.Sleep(2000);
+                    return new ThreadResult(machines[index], false);
+                }
+                progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 2));
 
-                    // STEP 1
-                    // check ip
-                    bool isValidIpA = UniversalStatic.ValidateIP(ipAddress);
-                    if (!isValidIpA)
+                // STEP 3
+                // Connecting to the machine
+                ZkemClient newZkeeper = new ZkemClient(RaiseDeviceEvent);
+                label.Invoke(new Action(() => label.Text = string.Format("Kết nối tới máy {0} ({1})...", machineNumber, ipAddress)));
+                newZkeeper.SetCommuTimeOut(1000);
+                bool IsTheDeviceConnected = newZkeeper.Connect_Net(ipAddress, port);
+                progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 3));
+
+                if (IsTheDeviceConnected)
+                {
+                    DeviceManipulator newManipulator = new DeviceManipulator();
+                    string deviceInfo = newManipulator.FetchDeviceInfo(newZkeeper, machineNumber);
+                    label.Invoke(new Action(() => label.Text = string.Format("Máy {0} ({1}) đã được kết nối. Tên máy: {2} !!", machineNumber, ipAddress, deviceInfo)));
+
+                    // STEP 4
+                    // Pulling data
+                    label.Invoke(new Action(() => label.Text = string.Format("Đọc dữ liệu từ máy {0} ({1})", machineNumber, ipAddress)));
+                    ICollection<MachineInfo> lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber);
+                    progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 4));
+
+                    if (lstMachineInfo != null && lstMachineInfo.Count > 0)
                     {
-                        label.Invoke(new Action(() => label.Text = string.Format("Địa chỉ IP của máy {0} ({1})không hợp lệ", machineNumber, ipAddress)));
-                        progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                        Thread.Sleep(2000);
-                        continue;
-                    }
-                    progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 1));
+                        label.Invoke(new Action(() => label.Text = string.Format("Đọc được {0} dòng từ máy {1} ({2})", lstMachineInfo.Count, machineNumber, ipAddress)));
 
-                    // STEP 2
-                    // ping ip
-                    isValidIpA = UniversalStatic.PingTheDevice(ipAddress);
-                    if (!isValidIpA)
-                    {
-                        label.Invoke(new Action(() => label.Text = string.Format("Không thể ping được tới máy {0} ({1}), vui lòng kiểm tra hạ tầng", machineNumber, ipAddress)));
-                        progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                        Thread.Sleep(2000);
-                        continue;
-                    }
-                    progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 2));
-
-                    // STEP 3
-                    // Connecting to the machine
-                    ZkemClient newZkeeper = new ZkemClient(RaiseDeviceEvent);
-                    bool IsTheDeviceConnected = newZkeeper.Connect_Net(ipAddress, port);
-                    progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 3));
-
-                    if (IsTheDeviceConnected)
-                    {
-                        DeviceManipulator newManipulator = new DeviceManipulator();
-                        string deviceInfo = newManipulator.FetchDeviceInfo(newZkeeper, machineNumber);
-                        label.Invoke(new Action(() => label.Text = string.Format("Máy {0} ({1}) đã được kết nối. Tên máy: {2} !!", machineNumber, ipAddress, deviceInfo)));
-
-                        // STEP 4
-                        // Pulling data
-                        label.Invoke(new Action(() => label.Text = string.Format("Đọc dữ liệu từ máy {0} ({1})", machineNumber, ipAddress)));
-                        ICollection<MachineInfo> lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber);
-                        progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 4));
-
-                        if (lstMachineInfo != null && lstMachineInfo.Count > 0)
+                        // STEP 5
+                        // Preparing data
+                        label.Invoke(new Action(() => label.Text = string.Format("Chuyển đổi dữ liệu cho máy {0} ({1})", machineNumber, ipAddress)));
+                        List<LogData> list = new List<LogData>();
+                        foreach (var item in lstMachineInfo)
                         {
-                            label.Invoke(new Action(() => label.Text = string.Format("Đọc được {0} dòng từ máy {1} ({2})", lstMachineInfo.Count, machineNumber, ipAddress)));
-
-                            // STEP 5
-                            // Preparing data
-                            label.Invoke(new Action(() => label.Text = string.Format("Chuyển đổi dữ liệu cho máy {0} ({1})", machineNumber, ipAddress)));
-                            List<LogData> list = new List<LogData>();
-                            foreach (var item in lstMachineInfo)
+                            list.Add(new LogData()
                             {
-                                list.Add(new LogData()
-                                {
-                                    MachineNumber = machineNumber,
-                                    IndRegID = item.IndRegID,
-                                    DateTimeRecord = item.DateTimeRecord,
-                                    DateOnlyRecord = item.DateOnlyRecord,
-                                    TimeOnlyRecord = item.TimeOnlyRecord
-                                });
-                            }
-                            progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 5));
-
-                            ZKTECOEntities _db = new ZKTECOEntities();
-
-                            // STEP 6
-                            // Delete old data
-                            label.Invoke(new Action(() => label.Text = string.Format("Xóa dữ liệu cũ từ CSDL của máy {0} ({1})", machineNumber, ipAddress)));
-                            _db.Database.ExecuteSqlCommand("DELETE FROM [LogData] WHERE [MachineNumber] = " + machineNumber);
-                            progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 6));
-
-                            // STEP 7
-                            // Push data to db
-                            label.Invoke(new Action(() => label.Text = string.Format("Đẩy dữ liệu của máy {0} ({1}) tới máy chủ", machineNumber, ipAddress)));
-
-                            _db.BulkInsert(list);
-
-                            //_db.LogDatas.AddRange(list);
-                            //_db.SaveChanges();
-                            progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 8));
+                                MachineNumber = machineNumber,
+                                IndRegID = item.IndRegID,
+                                DateTimeRecord = item.DateTimeRecord,
+                                DateOnlyRecord = item.DateOnlyRecord,
+                                TimeOnlyRecord = item.TimeOnlyRecord
+                            });
                         }
-                        progressBar.Invoke(new Action(() => progressBar.Value = 100));
-                        label.Invoke(new Action(() => label.Text = string.Format("Cập nhật dữ liệu thành công cho máy {0} ({1})", machineNumber, ipAddress)));
-                        return new ThreadResult(machines[index], true);
+                        progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 5));
+
+                        ZKTECOEntities _db = new ZKTECOEntities();
+
+                        // STEP 6
+                        // Delete old data
+                        label.Invoke(new Action(() => label.Text = string.Format("Xóa dữ liệu cũ từ CSDL của máy {0} ({1})", machineNumber, ipAddress)));
+                        _db.Database.ExecuteSqlCommand("DELETE FROM [LogData] WHERE [MachineNumber] = " + machineNumber);
+                        progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 6));
+
+                        // STEP 7
+                        // Push data to db
+                        label.Invoke(new Action(() => label.Text = string.Format("Đẩy dữ liệu của máy {0} ({1}) tới máy chủ", machineNumber, ipAddress)));
+
+                        _db.BulkInsert(list);
+
+                        //_db.LogDatas.AddRange(list);
+                        //_db.SaveChanges();
+                        progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 8));
                     }
-                    else
-                    {
-                        label.Invoke(new Action(() => label.Text = string.Format("Không thể kết nối tới máy {0} ({1}). Có thể đây không phải là máy chấm công ZKTeco", machineNumber, ipAddress)));
-                        progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                        Thread.Sleep(2000);
-                        continue;
-                    }
+                    progressBar.Invoke(new Action(() => progressBar.Value = 100));
+                    label.Invoke(new Action(() => label.Text = string.Format("Cập nhật dữ liệu thành công cho máy {0} ({1})", machineNumber, ipAddress)));
+                    return new ThreadResult(machines[index], true);
                 }
-                catch (Exception ex)
+                else
                 {
-                    lock (_lockObject)
-                    {
-                        File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, ex.Message));
-                    }
-                    continue;
+                    label.Invoke(new Action(() => label.Text = string.Format("Không thể kết nối tới máy {0} ({1}). Có thể đây không phải là máy chấm công ZKTeco", machineNumber, ipAddress)));
+                    progressBar.Invoke(new Action(() => progressBar.SetState(2)));
+                    Thread.Sleep(2000);
+                    return new ThreadResult(machines[index], false);
                 }
+                //    }
+                //    catch (Exception ex)
+                //    {
+                //        lock (_lockObject)
+                //        {
+                //            File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, ex.Message));
+                //        }
+                //        continue;
+                //    }
+                //}
+                /*
+                label.Invoke(new Action(() => label.Text = string.Format("Thời gian chờ máy {0} ({1}) đã hết.", machineNumber, ipAddress)));
+                progressBar.Invoke(new Action(() => progressBar.SetState(2)));
+                Thread.Sleep(2000);
+                return new ThreadResult(machines[index], false, true);
+                */
             }
-            label.Invoke(new Action(() => label.Text = string.Format("Thời gian chờ máy {0} ({1}) đã hết.", machineNumber, ipAddress)));
-            progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-            Thread.Sleep(2000);
-            return new ThreadResult(machines[index], false, true);
+            catch (Exception outerEx)
+            {
+                if (outerEx is ThreadAbortException)
+                {
+                    Console.WriteLine("WHAT A FUCK");
+                    label.Invoke(new Action(() => label.Text = string.Format("Thời gian chờ máy {0} ({1}) đã hết.", machineNumber, ipAddress)));
+                    progressBar.Invoke(new Action(() => progressBar.SetState(2)));
+                    Thread.Sleep(2000);
+                    StartThreat(machines[index], index);
+
+                }
+                return new ThreadResult(machines[index], false, true);
+            }
         }
 
 
         private void PullDataToDb_Click(object sender, EventArgs e)
         {
+            PrepareThreadUI();
 
+            int i = 0;
+            foreach (var item in machines)
+            {
+                //if (i > 0) break;
+                // When each thread starts, it is imposible to wait (like async javascript code)
+                string ipAddress = machines[i].IpAddress;
+                int port = machines[i].Port;
+                int machineNumber = machines[i].MachineNumber;
+
+                StartThreat(machines[i], i);
+
+                // tanleica: Wait for current thread starts before i changes
+                Thread.Sleep(100);
+                i++;
+            }
+        }
+
+        private void PrepareThreadUI()
+        {
             progressBars.Clear();
             labels.Clear();
+            timerLabels.Clear();
             threadColors.Clear();
             btnSettings.Focus();
             btnPullDataToDb.Enabled = false;
-
-            Label labelTimer = new Label();
-            Timer timer = new Timer();
-            timer.Interval = 1000;
-            timer.Tick += Timer_Tick;
-            timer.Start();
-
 
             // Delete all existing ProgressBars and related Labels
             List<Control> controlList = new List<Control>();
@@ -244,14 +282,22 @@ namespace BioMetrixCore
             {
                 ProgressBar progressBar = new ProgressBar()
                 {
-                    Location = new Point(4, 53 * (i + 1)),
-                    Width = panel2.Width - 26
+                    Location = new Point(4 + counterWidth, 53 * (i + 1)),
+                    Width = panel2.Width - 26 - counterWidth
                 };
                 Label label = new Label()
                 {
-                    Location = new Point(4, 53 * (i + 1) + 25),
+                    Location = new Point(4 + counterWidth, 53 * (i + 1) + 25),
                     Text = "Label " + i.ToString(),
-                    Width = panel2.Width - 26
+                    Width = panel2.Width - 26 - counterWidth,
+                    Tag = "inner"
+                };
+                Label labelCurrentTimer = new Label()
+                {
+                    Location = new Point(4, 53 * (i + 1) + 6),
+                    Text = "0",
+                    Width = counterWidth - 5,
+                    Tag = "timer"
                 };
                 progressBars.Add(new ProgressBarItem()
                 {
@@ -263,61 +309,46 @@ namespace BioMetrixCore
                     Index = i,
                     Label = label
                 });
+                frm.timerLabels.Add(new LabelItem()
+                {
+                    Index = i,
+                    Label = labelCurrentTimer
+                });
+                panel2.Controls.Add(labelCurrentTimer);
                 panel2.Controls.Add(progressBar);
                 panel2.Controls.Add(label);
                 threadColors.Add(1); // default color is Green
                 i++;
             }
-            //this.Height = panel2.Top + (53 + 25) * i;
-
-            i = 0;
-            foreach (var item in machines)
-            {
-                // When each thread starts, it is imposible to wait (like async javascript code)
-                string ipAddress = machines[i].IpAddress;
-                int port = machines[i].Port;
-                int machineNumber = machines[i].MachineNumber;
-
-                StartThreat(machines[i], i);
-
-                // tanleica: Wait for current thread starts before i changes
-                Thread.Sleep(100);
-                i++;
-            }
-        }
-
-        private void Timer_Tick(object sender, EventArgs e)
-        {
-            ++count;
-            btnPullDataToDb.Text = count.ToString();
         }
 
         private void DoThread(object obj)
         {
-            bool autoRepeat = ConfigurationManager.AppSettings["autoRepeatWhenFails"] == "True";
             ThreadParameters threadParameters = (ThreadParameters)obj;
             CancellationTokenSource cts = threadParameters.CancellationTokenSource;
             CancellationToken ct = threadParameters.CancellationToken;
             Machine machine = threadParameters.Machine;
             int i = threadParameters.Index;
             Timer timer = threadParameters.Timer;
+            Timer countingTimer = threadParameters.CountingTimer;
 
             ThreadResult threadResult = PullDataToDbThread(ct, machine.IpAddress, machine.Port, machine.MachineNumber, i);
-            if (threadResult.IsSuccess)
+            // Free the timers and CancellationTokenSource
+            /*
+            if (timer != null)
             {
-                // Free the timer if current thread has done
-                if (timer != null)
-                {
-                    timer.Stop();
-                    timer.Dispose();
-                }
-                cts.Dispose();
-                lock (_lockObject)
-                {
-                    File.AppendAllText(@"Log.txt", string.Format($"SUCCESS! Timer for {threadResult.Machine.MachineNumber} ({threadResult.Machine.IpAddress}) was disposed!"));
-                }
+                timer.Stop();
+                timer.Dispose();
             }
-            else
+            if (countingTimer != null)
+            {
+                countingTimer.Stop();
+                countingTimer.Dispose();
+            }
+            cts.Dispose();
+            */
+
+            if (!threadResult.IsSuccess)
             {
                 // tanleica: Using percusive method to run a new thread
                 if (autoRepeat)
@@ -328,32 +359,60 @@ namespace BioMetrixCore
                     StartThreat(machine, i);
                 }
             }
+            else
+            {
+                lock (_lockObject)
+                {
+                    File.AppendAllText(@"Log.txt", string.Format($"SUCCESS! Timer for {threadResult.Machine.MachineNumber} ({threadResult.Machine.IpAddress}) was disposed!"));
+                }
+            }
         }
 
         private void StartThreat(Machine machine, int i)
         {
-            bool autoRepeat = ConfigurationManager.AppSettings["autoRepeatWhenFails"] == "True";
             CancellationTokenSource cts = new CancellationTokenSource();
             Thread t = new Thread(new ParameterizedThreadStart(DoThread));
-            t.Name = "MachineNumber: " + machine.MachineNumber;
+            t.Name = machine.MachineNumber.ToString();
             t.IsBackground = false;
-            Timer timer = SetTimer(t, cts);
-            ThreadParameters threadParameters = new ThreadParameters(cts, machine, i, timer);
+            // Thread counting timer
+            Timer timer_ = SetCountingTimer(i, t, cts);
+            // Cancellation timer
+            Timer timer = SetTimer(i, t, cts, timer_);
+
             timer.Start();
+            timer_.Start();
+            Console.WriteLine("Counting Timer is running = " + timer_.Enabled.ToString());
+            Thread.Sleep(500);
+            ThreadParameters threadParameters = new ThreadParameters(cts, machine, i, timer, timer_);
             t.Start(threadParameters);
         }
 
-        private static Timer SetTimer(Thread t, CancellationTokenSource cts)
+        private static Timer SetTimer(int index, Thread t, CancellationTokenSource cts, Timer childTimer)
         {
-            // Create a timer with a two second interval.
-            Timer timer = new Timer();
-            // Hook up the Elapsed event for the timer. 
-            timer.Interval = autoRepeatTimer;
-            // We can tag an object to the timer
-            timer.Tag = new ThreadStartInfo(t, cts);
+            // Create a timer to cancel the thread.
+            Timer timer = new Timer
+            {
+                Interval = 5000, //autoRepeatTimer,
+                // We can tag an object to the timer
+                Tag = new ThreadStartInfo(index, t, cts, childTimer)
+            };
             timer.Tick += new EventHandler(TimerEventProcessor);
             return timer;
         }
+
+        private static Timer SetCountingTimer(int index, Thread t, CancellationTokenSource cts)
+        {
+            // Create a timer to cancel the thread.
+            Timer timer = new Timer
+            {
+                Interval = 1000,
+                // We can tag an object to the timer
+                Tag = new ThreadStartInfo(index, t, cts, null)
+            };
+            timer.Tick += new EventHandler(CountingTimerEventProcessor);
+            return timer;
+        }
+
 
         // This is the method to run when the timer is raised   .
         private static void TimerEventProcessor(Object sender, EventArgs myEventArgs)
@@ -368,10 +427,25 @@ namespace BioMetrixCore
             }
             // token will raised in the delagate ("PullDataToDbThread")
             tsi.CancellationTokenSource.Cancel();
+
+            tsi.Thread.Abort();
+
             Timer timer = (Timer)sender;
             timer.Stop();
             timer.Dispose();
+            tsi.ChildTimer.Stop();
+            tsi.ChildTimer.Dispose();
             tsi.CancellationTokenSource.Dispose();
+        }
+
+        private static void CountingTimerEventProcessor(Object sender, EventArgs myEventArgs)
+        {
+            // Get the tag of the timer using Reflection
+            System.Reflection.PropertyInfo pi = sender.GetType().GetProperty("Tag");
+            ThreadStartInfo tsi = (ThreadStartInfo)(pi.GetValue(sender, null));
+            tsi.TimeCount++;
+            Console.WriteLine(tsi.TimeCount.ToString());
+            frm.timerLabels[tsi.Index].Label.Text = (tsi.TimeCount + 1).ToString();
         }
 
         private void Master_Load(object sender, EventArgs e)
@@ -411,7 +485,7 @@ namespace BioMetrixCore
 
         private void Master_Resize(object sender, EventArgs e)
         {
-            int newWidth = panel2.Width - 26;
+            int newWidth = panel2.Width - 26 - counterWidth;
             foreach (var item in panel2.Controls)
             {
                 // Console.WriteLine(item.GetType().ToString() + "\n");
@@ -423,7 +497,7 @@ namespace BioMetrixCore
                 else if (item.GetType().ToString() == "System.Windows.Forms.Label")
                 {
                     Label label = (Label)item;
-                    label.Width = newWidth;
+                    if (label.Tag.ToString() != "timer") label.Width = newWidth;
                 }
             }
         }
@@ -450,7 +524,7 @@ namespace BioMetrixCore
             // Start the worker thread and pass it the token.
             Timer timer = new Timer();
             timer.Interval = 5000;
-            timer.Tag = new ThreadStartInfo(t2, cts);
+            timer.Tag = new ThreadStartInfo(0, t2, cts, null);
             timer.Tick += Timer_Tick1;
             timer.Start();
             t2.Start(cts.Token);

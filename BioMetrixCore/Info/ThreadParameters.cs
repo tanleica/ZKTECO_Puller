@@ -9,14 +9,16 @@ namespace BioMetrixCore.Info
         public CancellationToken CancellationToken { get; set; }
         public Machine Machine { get; set; }    
         public int Index { get; set; }
-        public Timer Timer { get; set; }    
-        public ThreadParameters(CancellationTokenSource cancellationTokenSource, Machine machine, int index, Timer timer)
+        public Timer Timer { get; set; }
+        public Timer CountingTimer { get; set; }
+        public ThreadParameters(CancellationTokenSource cancellationTokenSource, Machine machine, int index, Timer timer, Timer countingTimer)
         {
             CancellationTokenSource = cancellationTokenSource;
             CancellationToken = cancellationTokenSource.Token;
             Machine = machine;
             Index = index;
             Timer = timer;
+            CountingTimer = countingTimer;
         }
     }
 }
