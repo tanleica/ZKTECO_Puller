@@ -11,8 +11,8 @@ namespace BioMetrixCore.Info
         public Machine Machine { get; set; }    
         public int Index { get; set; }
         public Timer Timer { get; set; }
-        public Timer CountingTimer { get; set; }
-        public ThreadParameters(Thread thread, CancellationTokenSource cancellationTokenSource, Machine machine, int index, Timer timer, Timer countingTimer)
+        //public Timer CountingTimer { get; set; }
+        public ThreadParameters(Thread thread, CancellationTokenSource cancellationTokenSource, Machine machine, int index, Timer timer /*, Timer countingTimer */)
         {
             Thread = thread;
             CancellationTokenSource = cancellationTokenSource;
@@ -20,7 +20,7 @@ namespace BioMetrixCore.Info
             Machine = machine;
             Index = index;
             Timer = timer;
-            CountingTimer = countingTimer;
+            // CountingTimer = countingTimer;
         }
     }
 }

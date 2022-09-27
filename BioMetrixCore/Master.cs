@@ -9,9 +9,13 @@ using System.ComponentModel;
 using System.IO;
 using Newtonsoft.Json;
 using System.Linq;
+using System.Net.Http;
 using Timer = System.Windows.Forms.Timer;
 using ProgressBar = System.Windows.Forms.ProgressBar;
 using Label = System.Windows.Forms.Label;
+using System.Threading.Tasks;
+using System.Text;
+using System.Reflection;
 
 namespace BioMetrixCore
 {
@@ -19,16 +23,19 @@ namespace BioMetrixCore
     [RunInstaller(true)]
     public partial class Master : Form
     {
+
+        static readonly HttpClient client = new HttpClient();
+
         private readonly List<Machine> machines;
         private readonly List<ProgressBarItem> progressBars = new List<ProgressBarItem>();
         private readonly List<LabelItem> labels = new List<LabelItem>();
-        private readonly List<LabelItem> timerLabels = new List<LabelItem>();
+        //private readonly List<LabelItem> timerLabels = new List<LabelItem>();
         private readonly List<int> threadColors = new List<int>();
         private static Master frm;
         private static object _lockObject = new object();
         private static int autoRepeatTimer;
         private readonly bool autoRepeat;
-        const int counterWidth = 80;
+        const int counterWidth = 0 /*80*/;
 
         public Master()
         {
@@ -39,7 +46,7 @@ namespace BioMetrixCore
                 frm = this;
                 machines = JsonConvert.DeserializeObject<List<Machine>>(File.ReadAllText(@"machines.json")).ToList();
                 string autoRepeatTimerStr = ConfigurationManager.AppSettings["autoRepeatTimer"];
-                autoRepeatTimer = autoRepeatTimerStr == null ? 15000 : (int)Convert.ToDecimal(autoRepeatTimerStr);
+                autoRepeatTimer = autoRepeatTimerStr == null ? 150000 : (int)Convert.ToDecimal(autoRepeatTimerStr);
                 autoRepeat = ConfigurationManager.AppSettings["autoRepeatWhenFails"] == "True";
             }
             catch (Exception ex)
@@ -89,7 +96,7 @@ namespace BioMetrixCore
         private void pnlHeader_Paint(object sender, PaintEventArgs e)
         { UniversalStatic.DrawLineInFooter(pnlHeader, Color.FromArgb(204, 204, 204), 2); }
 
-        private ThreadResult PullDataToDbThread(ThreadParameters threadParameters)
+        private async Task<ThreadResult> PullDataToDbThread(ThreadParameters threadParameters)
         {
             Machine machine = threadParameters.Machine;
             string ipAddress = machine.IpAddress;
@@ -97,7 +104,7 @@ namespace BioMetrixCore
             int machineNumber = machine.MachineNumber;
             int index = threadParameters.Index;
             Label label = labels[index].Label;
-            Label timerLabel = timerLabels[index].Label;
+            //Label timerLabel = timerLabels[index].Label;
             ProgressBar progressBar = progressBars[index].ProgressBar;
 
             // if you want to imitate a long thread
@@ -111,12 +118,13 @@ namespace BioMetrixCore
 
                 // STEP 1
                 // check ip
+                // check ip
                 bool isValidIpA = UniversalStatic.ValidateIP(ipAddress);
                 if (!isValidIpA)
                 {
                     label.Invoke(new Action(() => label.Text = string.Format("Địa chỉ IP của máy {0} ({1})không hợp lệ", machineNumber, ipAddress)));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                    timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
+                    // timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
                     Thread.Sleep(2000);
                     return new ThreadResult(machines[index], false);
                 }
@@ -129,7 +137,7 @@ namespace BioMetrixCore
                 {
                     label.Invoke(new Action(() => label.Text = string.Format("Không thể ping được tới máy {0} ({1}), vui lòng kiểm tra hạ tầng", machineNumber, ipAddress)));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                    timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
+                    // timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
                     Thread.Sleep(2000);
                     return new ThreadResult(machines[index], false);
                 }
@@ -175,34 +183,54 @@ namespace BioMetrixCore
                         }
                         progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 5));
 
-                        ZKTECOEntities _db = new ZKTECOEntities();
+                        // ZKTECOEntities _db = new ZKTECOEntities();
 
                         // STEP 6
                         // Delete old data
-                        label.Invoke(new Action(() => label.Text = string.Format("Xóa dữ liệu cũ từ CSDL của máy {0} ({1})", machineNumber, ipAddress)));
-                        _db.Database.ExecuteSqlCommand("DELETE FROM [LogData] WHERE [MachineNumber] = " + machineNumber);
+                        // label.Invoke(new Action(() => label.Text = string.Format("Xóa dữ liệu cũ từ CSDL của máy {0} ({1})", machineNumber, ipAddress)));
+                        label.Invoke(new Action(() => label.Text = string.Format("Lấy mã đăng nhập cho máy {0} ({1})", machineNumber, ipAddress)));
+                        //_db.Database.ExecuteSqlCommand("DELETE FROM [LogData] WHERE [MachineNumber] = " + machineNumber);
                         progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 6));
+                        var authResponse = JsonConvert.DeserializeObject<LoginResonseCDS>(await GetToken(machine));
+
+                        var token = authResponse.data.token;
 
                         // STEP 7
                         // Push data to db
                         label.Invoke(new Action(() => label.Text = string.Format("Đẩy dữ liệu của máy {0} ({1}) tới máy chủ", machineNumber, ipAddress)));
 
-                        _db.BulkInsert(list);
-
-                        //_db.LogDatas.AddRange(list);
-                        //_db.SaveChanges();
-                        progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 8));
+                        //_db.BulkInsert(list);
+                        var originalResponse = await PostApi(machine, list, token);
+                        var response = JsonConvert.DeserializeObject<GeneralResponse>(originalResponse);
+                        if (response.statusCode == "200")
+                        {
+                            //_db.LogDatas.AddRange(list);
+                            //_db.SaveChanges();
+                            progressBar.Invoke(new Action(() => progressBar.Value = 100));
+                            label.Invoke(new Action(() => label.Text = string.Format("Cập nhật dữ liệu thành công cho máy {0} ({1})", machineNumber, ipAddress)));
+                            // timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
+                            return new ThreadResult(machines[index], true);
+                        }
+                        else
+                        {
+                            Console.WriteLine(originalResponse);
+                            label.Invoke(new Action(() => label.Text = string.Format("Không đẩy được dữ liệu từ máy {0} ({1}) đến server", machineNumber, ipAddress)));
+                            progressBar.Invoke(new Action(() => progressBar.SetState(2)));
+                            return new ThreadResult(machines[index], false);
+                        }
                     }
-                    progressBar.Invoke(new Action(() => progressBar.Value = 100));
-                    label.Invoke(new Action(() => label.Text = string.Format("Cập nhật dữ liệu thành công cho máy {0} ({1})", machineNumber, ipAddress)));
-                    timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
-                    return new ThreadResult(machines[index], true);
+                    else
+                    {
+                        label.Invoke(new Action(() => label.Text = string.Format("Máy {0} ({1}) không có dữ liệu", machineNumber, ipAddress)));
+                        return new ThreadResult(machines[index], false);
+                    }
+
                 }
                 else
                 {
                     label.Invoke(new Action(() => label.Text = string.Format("Không thể kết nối tới máy {0} ({1}). Có thể đây không phải là máy chấm công ZKTeco", machineNumber, ipAddress)));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                    timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
+                    // timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
                     Thread.Sleep(2000);
                     return new ThreadResult(machines[index], false);
                 }
@@ -217,13 +245,94 @@ namespace BioMetrixCore
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
                     Thread.Sleep(1000);
                     return new ThreadResult(machines[index], false, true);
-
                 }
+
                 lock (_lockObject)
                 {
                     File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, ex.Message));
                 }
                 return new ThreadResult(machines[index], false);
+            }
+        }
+
+        private string DateToApiString(string datetimeString)
+        {
+            DateTime dt = DateTime.Parse(datetimeString);
+            int Y = dt.Year; int M = dt.Month; int D = dt.Day; int h = dt.Hour; int m = dt.Minute; int s = dt.Second;
+            string r = String.Format("{0}/{1}/{2} {3}:{4}:{5}",
+                D < 10 ? "0" + D : D.ToString(),
+                M < 10 ? "0" + M : M.ToString(),
+                Y,
+                h < 10 ? "0" + h : h.ToString(),
+                m < 10 ? "0" + m : m.ToString(),
+                s < 10 ? "0" + s : s.ToString()
+                );
+            return r;
+        }
+
+        private async Task<string> GetToken(Machine machine)
+        {
+            // Call asynchronous network methods in a try/catch block to handle exceptions.
+            try
+            {
+                LoginRequestCDS loginRequestCDS = new LoginRequestCDS()
+                {
+                    tenantCode = machine.TenantCode,
+                    userName = machine.UserName,
+                    passWord = machine.Password
+                };
+
+                StringContent content = new StringContent(JsonConvert.SerializeObject(loginRequestCDS),
+                Encoding.UTF8, "application/json");
+
+                HttpResponseMessage response = await client.PostAsync("http://core.vn:82/api/Authen/SignInPortalHR", content);
+                response.EnsureSuccessStatusCode();
+                string responseBody = await response.Content.ReadAsStringAsync();
+                // Above three lines can be replaced with new helper method below
+                // string responseBody = await client.GetStringAsync(uri);
+                return responseBody;
+            }
+            catch (HttpRequestException e)
+            {
+                Console.WriteLine("\nException Caught!");
+                Console.WriteLine("Message :{0} ", e.Message);
+                throw new Exception(e.Message);
+            }
+
+        }
+
+        private async Task<string> PostApi(Machine machine, List<LogData> list, string token)
+        {
+            // Call asynchronous network methods in a try/catch block to handle exceptions.
+            try
+            {
+
+                List<ApiImportItem> listForApi = new List<ApiImportItem>();
+                foreach (LogData logData in list)
+                {
+                    listForApi.Add(new ApiImportItem()
+                    {
+                        code = logData.IndRegID.ToString(),
+                        time = DateToApiString(logData.DateTimeRecord)
+                    });
+                }
+                string jsonBody = JsonConvert.SerializeObject(listForApi);
+                StringContent content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                HttpResponseMessage response = await client.PostAsync("http://core.vn:82/api/hr/TimeSheetMonthly/ImportSwipeMachine", content);
+                response.EnsureSuccessStatusCode();
+                string responseBody = await response.Content.ReadAsStringAsync();
+                // Above three lines can be replaced with new helper method below
+                // string responseBody = await client.GetStringAsync(uri);
+
+                Console.WriteLine(responseBody);
+                return responseBody;
+            }
+            catch (HttpRequestException e)
+            {
+                Console.WriteLine("\nException Caught!");
+                Console.WriteLine("Message :{0} ", e.Message);
+                return "{ statusCode: \"500\" }";
             }
         }
 
@@ -252,7 +361,7 @@ namespace BioMetrixCore
         {
             progressBars.Clear();
             labels.Clear();
-            timerLabels.Clear();
+            //timerLabels.Clear();
             threadColors.Clear();
             btnSettings.Focus();
             btnPullDataToDb.Enabled = false;
@@ -305,11 +414,13 @@ namespace BioMetrixCore
                     Index = i,
                     Label = label
                 });
+                /*
                 frm.timerLabels.Add(new LabelItem()
                 {
                     Index = i,
                     Label = labelCurrentTimer
                 });
+                */
                 panel2.Controls.Add(labelCurrentTimer);
                 panel2.Controls.Add(progressBar);
                 panel2.Controls.Add(label);
@@ -318,7 +429,7 @@ namespace BioMetrixCore
             }
         }
 
-        private void DoThread(object obj)
+        private async void DoThread(object obj)
         {
             ThreadParameters threadParameters = (ThreadParameters)obj;
             CancellationTokenSource cts = threadParameters.CancellationTokenSource;
@@ -326,13 +437,14 @@ namespace BioMetrixCore
             Machine machine = threadParameters.Machine;
             int i = threadParameters.Index;
 
-            ThreadResult threadResult = PullDataToDbThread(threadParameters);
+            var threadResult = await PullDataToDbThread(threadParameters);
 
             threadParameters.Timer.Stop();
-            threadParameters.CountingTimer.Stop();
+            //threadParameters.CountingTimer.Stop();
             threadParameters.Timer.Dispose();
-            threadParameters.CountingTimer.Dispose();
+            //threadParameters.CountingTimer.Dispose();
             cts.Dispose();
+
 
             if (!threadResult.IsSuccess)
             {
@@ -352,6 +464,7 @@ namespace BioMetrixCore
                     File.AppendAllText(@"Log.txt", string.Format($"SUCCESS! Timer for {threadResult.Machine.MachineNumber} ({threadResult.Machine.IpAddress}) was disposed!"));
                 }
             }
+
         }
 
         private void StartThreat(Machine machine, int i)
@@ -362,12 +475,12 @@ namespace BioMetrixCore
             t.Name = machine.MachineNumber.ToString();
             t.IsBackground = false;
             // Thread counting timer
-            Timer timer_ = SetCountingTimer(i, t, cts);
+            //Timer timer_ = SetCountingTimer(i, t, cts);
             // Cancellation timer
-            Timer timer = SetTimer(i, t, cts, timer_);
+            Timer timer = SetTimer(i, t, cts /*, timer_ */);
 
             //Console.WriteLine("Counting Timer is running = " + timer_.Enabled.ToString());
-            ThreadParameters threadParameters = new ThreadParameters(t, cts, machine, i, timer, timer_);
+            ThreadParameters threadParameters = new ThreadParameters(t, cts, machine, i, timer /*, timer_*/);
             token.Register(() =>
             {
                 CancelThread(threadParameters);
@@ -378,7 +491,7 @@ namespace BioMetrixCore
                 }
             });
             timer.Start();
-            timer_.Start();
+            // timer_.Start();
             t.Start(threadParameters);
         }
 
@@ -388,25 +501,26 @@ namespace BioMetrixCore
             Console.WriteLine($"Thread {threadParameters.Machine.MachineNumber} ({threadParameters.Machine.IpAddress}) is being aborted...");
             threadParameters.Thread.Abort();
             threadParameters.Timer.Stop();
-            threadParameters.CountingTimer.Stop();
+            //threadParameters.CountingTimer.Stop();
             threadParameters.Timer.Dispose();
-            threadParameters.CountingTimer.Dispose();
+            //threadParameters.CountingTimer.Dispose();
             threadParameters.CancellationTokenSource.Dispose();
         }
 
-        private static Timer SetTimer(int index, Thread t, CancellationTokenSource cts, Timer childTimer)
+        private static Timer SetTimer(int index, Thread t, CancellationTokenSource cts /*, Timer childTimer */)
         {
             // Create a timer to cancel the thread.
             Timer timer = new Timer
             {
                 Interval = autoRepeatTimer,
                 // We can tag an object to the timer
-                Tag = new ThreadStartInfo(index, t, cts, childTimer)
+                Tag = new ThreadStartInfo(index, t, cts /*, childTimer */)
             };
             timer.Tick += new EventHandler(TimerEventProcessor);
             return timer;
         }
 
+        /*
         private static Timer SetCountingTimer(int index, Thread t, CancellationTokenSource cts)
         {
             // Create a timer to cancel the thread.
@@ -419,7 +533,7 @@ namespace BioMetrixCore
             timer.Tick += new EventHandler(CountingTimerEventProcessor);
             return timer;
         }
-
+        */
 
         // This is the method to run when the timer is raised   .
         private static void TimerEventProcessor(Object sender, EventArgs myEventArgs)
@@ -436,6 +550,7 @@ namespace BioMetrixCore
             tsi.CancellationTokenSource.Cancel();
         }
 
+        /*
         private static void CountingTimerEventProcessor(Object sender, EventArgs myEventArgs)
         {
             // Get the tag of the timer using Reflection
@@ -446,6 +561,7 @@ namespace BioMetrixCore
             string str = time.ToString(@"hh\:mm\:ss");
             frm.timerLabels[tsi.Index].Label.Text = str;
         }
+        */
 
         private void Master_Load(object sender, EventArgs e)
         {

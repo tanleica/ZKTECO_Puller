@@ -34,13 +34,15 @@
             this.buttonSave = new System.Windows.Forms.Button();
             this.numericUpDownTimer = new System.Windows.Forms.NumericUpDown();
             this.label1 = new System.Windows.Forms.Label();
+            this.mcStartingDate = new System.Windows.Forms.MonthCalendar();
+            this.labelStartingDate = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownTimer)).BeginInit();
             this.SuspendLayout();
             // 
             // checkBoxAutoStart
             // 
             this.checkBoxAutoStart.AutoSize = true;
-            this.checkBoxAutoStart.Location = new System.Drawing.Point(57, 47);
+            this.checkBoxAutoStart.Location = new System.Drawing.Point(335, 57);
             this.checkBoxAutoStart.Name = "checkBoxAutoStart";
             this.checkBoxAutoStart.Size = new System.Drawing.Size(73, 17);
             this.checkBoxAutoStart.TabIndex = 0;
@@ -50,7 +52,7 @@
             // checkBoxRepeatWhenFails
             // 
             this.checkBoxRepeatWhenFails.AutoSize = true;
-            this.checkBoxRepeatWhenFails.Location = new System.Drawing.Point(57, 70);
+            this.checkBoxRepeatWhenFails.Location = new System.Drawing.Point(335, 80);
             this.checkBoxRepeatWhenFails.Name = "checkBoxRepeatWhenFails";
             this.checkBoxRepeatWhenFails.Size = new System.Drawing.Size(117, 17);
             this.checkBoxRepeatWhenFails.TabIndex = 1;
@@ -59,7 +61,7 @@
             // 
             // buttonSave
             // 
-            this.buttonSave.Location = new System.Drawing.Point(57, 177);
+            this.buttonSave.Location = new System.Drawing.Point(211, 254);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(107, 42);
             this.buttonSave.TabIndex = 2;
@@ -74,7 +76,7 @@
             0,
             0,
             0});
-            this.numericUpDownTimer.Location = new System.Drawing.Point(57, 134);
+            this.numericUpDownTimer.Location = new System.Drawing.Point(335, 144);
             this.numericUpDownTimer.Maximum = new decimal(new int[] {
             3600000,
             0,
@@ -97,18 +99,35 @@
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(61, 114);
+            this.label1.Location = new System.Drawing.Point(339, 124);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(131, 13);
             this.label1.TabIndex = 4;
             this.label1.Text = "Repeat Timer (in seconds)";
+            // 
+            // mcStartingDate
+            // 
+            this.mcStartingDate.Location = new System.Drawing.Point(18, 55);
+            this.mcStartingDate.Name = "mcStartingDate";
+            this.mcStartingDate.TabIndex = 5;
+            // 
+            // labelStartingDate
+            // 
+            this.labelStartingDate.AutoSize = true;
+            this.labelStartingDate.Location = new System.Drawing.Point(15, 33);
+            this.labelStartingDate.Name = "labelStartingDate";
+            this.labelStartingDate.Size = new System.Drawing.Size(69, 13);
+            this.labelStartingDate.TabIndex = 6;
+            this.labelStartingDate.Text = "Starting Date";
             // 
             // Settings
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
-            this.ClientSize = new System.Drawing.Size(227, 250);
+            this.ClientSize = new System.Drawing.Size(528, 308);
+            this.Controls.Add(this.labelStartingDate);
+            this.Controls.Add(this.mcStartingDate);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.numericUpDownTimer);
             this.Controls.Add(this.buttonSave);
@@ -135,5 +154,7 @@
         private System.Windows.Forms.Button buttonSave;
         private System.Windows.Forms.NumericUpDown numericUpDownTimer;
         private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.MonthCalendar mcStartingDate;
+        private System.Windows.Forms.Label labelStartingDate;
     }
 }

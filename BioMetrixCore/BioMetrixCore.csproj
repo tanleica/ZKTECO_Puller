@@ -101,6 +101,7 @@
     <Compile Include="Controls\DataEmpty.Designer.cs">
       <DependentUpon>DataEmpty.cs</DependentUpon>
     </Compile>
+    <Compile Include="Info\ApiImportItem.cs" />
     <Compile Include="Info\Constants.cs" />
     <Compile Include="Info\LabelItem.cs" />
     <Compile Include="Info\Machine.cs" />
@@ -215,7 +216,6 @@
     <Content Include="dlls\32bit\zkemsdk.dll" />
     <Content Include="dlls\zkemkeeper.dll" />
     <Content Include="fingerprint-reader.ico" />
-    <Content Include="zkemkeeper.dll" />
     <None Include="Resources\noFileIcon.png" />
   </ItemGroup>
   <ItemGroup>
