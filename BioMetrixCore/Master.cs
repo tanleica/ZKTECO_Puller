@@ -15,7 +15,6 @@ using ProgressBar = System.Windows.Forms.ProgressBar;
 using Label = System.Windows.Forms.Label;
 using System.Threading.Tasks;
 using System.Text;
-using System.Reflection;
 
 namespace BioMetrixCore
 {
@@ -25,6 +24,8 @@ namespace BioMetrixCore
     {
 
         static readonly HttpClient client = new HttpClient();
+
+        private List<ThreadInfo> threadInfos = new List<ThreadInfo>();  
 
         private readonly List<Machine> machines;
         private readonly List<ProgressBarItem> progressBars = new List<ProgressBarItem>();
@@ -37,6 +38,10 @@ namespace BioMetrixCore
         private readonly bool autoRepeat;
         const int counterWidth = 0 /*80*/;
 
+        private readonly string apiLoginUrl; // == null? "http://core.vn:82/api/Authen/SignInPortalHR" : apiLoginUrl;
+        private readonly string apiPostUrl; // == null ? "http://core.vn:82/api/hr/TimeSheetMonthly/ImportSwipeMachine" : apiPostUrl;
+
+
         public Master()
         {
             InitializeComponent();
@@ -45,9 +50,21 @@ namespace BioMetrixCore
             {
                 frm = this;
                 machines = JsonConvert.DeserializeObject<List<Machine>>(File.ReadAllText(@"machines.json")).ToList();
+
+                foreach (Machine machine in machines)
+                {
+                    threadInfos.Add(new ThreadInfo(machine, false));
+                }
+
                 string autoRepeatTimerStr = ConfigurationManager.AppSettings["autoRepeatTimer"];
                 autoRepeatTimer = autoRepeatTimerStr == null ? 150000 : (int)Convert.ToDecimal(autoRepeatTimerStr);
                 autoRepeat = ConfigurationManager.AppSettings["autoRepeatWhenFails"] == "True";
+
+                string apiLoginUrlCfg = ConfigurationManager.AppSettings["apiLoginUrl"];
+                apiLoginUrl = apiLoginUrlCfg == null ? "http://core.vn:82/api/Authen/SignInPortalHR" : apiLoginUrlCfg;
+                string apiPostUrlCfg = ConfigurationManager.AppSettings["apiPostUrl"];
+                apiPostUrl = apiPostUrlCfg == null ? "http://core.vn:82/api/hr/TimeSheetMonthly/ImportSwipeMachine" : apiPostUrlCfg;
+
             }
             catch (Exception ex)
             {
@@ -96,6 +113,15 @@ namespace BioMetrixCore
         private void pnlHeader_Paint(object sender, PaintEventArgs e)
         { UniversalStatic.DrawLineInFooter(pnlHeader, Color.FromArgb(204, 204, 204), 2); }
 
+        private void WriteLog(string message)
+        {
+            lock (_lockObject)
+            {
+                File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, message));
+            }
+
+        }
+
         private async Task<ThreadResult> PullDataToDbThread(ThreadParameters threadParameters)
         {
             Machine machine = threadParameters.Machine;
@@ -103,6 +129,7 @@ namespace BioMetrixCore
             int port = machine.Port;
             int machineNumber = machine.MachineNumber;
             int index = threadParameters.Index;
+            DateTime maxTime = new DateTime(1900, 1, 1, 0, 0, 0);
             Label label = labels[index].Label;
             //Label timerLabel = timerLabels[index].Label;
             ProgressBar progressBar = progressBars[index].ProgressBar;
@@ -122,7 +149,9 @@ namespace BioMetrixCore
                 bool isValidIpA = UniversalStatic.ValidateIP(ipAddress);
                 if (!isValidIpA)
                 {
-                    label.Invoke(new Action(() => label.Text = string.Format("Địa chỉ IP của máy {0} ({1})không hợp lệ", machineNumber, ipAddress)));
+                    string message  = string.Format("Địa chỉ IP của máy {0} ({1})không hợp lệ", machineNumber, ipAddress);
+                    WriteLog(message);
+                    label.Invoke(new Action(() => label.Text = message));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
                     // timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
                     Thread.Sleep(2000);
@@ -135,7 +164,9 @@ namespace BioMetrixCore
                 isValidIpA = UniversalStatic.PingTheDevice(ipAddress);
                 if (!isValidIpA)
                 {
-                    label.Invoke(new Action(() => label.Text = string.Format("Không thể ping được tới máy {0} ({1}), vui lòng kiểm tra hạ tầng", machineNumber, ipAddress)));
+                    string message = string.Format("Không thể ping được tới máy {0} ({1}), vui lòng kiểm tra hạ tầng", machineNumber, ipAddress);
+                    label.Invoke(new Action(() => label.Text = message));
+                    WriteLog(message);
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
                     // timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
                     Thread.Sleep(2000);
@@ -159,12 +190,21 @@ namespace BioMetrixCore
                     // STEP 4
                     // Pulling data
                     label.Invoke(new Action(() => label.Text = string.Format("Đọc dữ liệu từ máy {0} ({1})", machineNumber, ipAddress)));
-                    ICollection<MachineInfo> lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber);
+                    ICollection<MachineInfo> lstMachineInfo;
+                    if (machine.LastTime != "")
+                    {
+                        lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber, DateTime.Parse(machine.LastTime));
+                    } else
+                    {
+                        lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber);
+                    }
                     progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 4));
 
                     if (lstMachineInfo != null && lstMachineInfo.Count > 0)
                     {
                         label.Invoke(new Action(() => label.Text = string.Format("Đọc được {0} dòng từ máy {1} ({2})", lstMachineInfo.Count, machineNumber, ipAddress)));
+
+                        Thread.Sleep(1000);
 
                         // STEP 5
                         // Preparing data
@@ -172,11 +212,14 @@ namespace BioMetrixCore
                         List<LogData> list = new List<LogData>();
                         foreach (var item in lstMachineInfo)
                         {
+                            DateTime newTime = DateTime.Parse(item.DateTimeRecord);
+                            if (newTime > maxTime) maxTime = newTime;
                             list.Add(new LogData()
                             {
                                 MachineNumber = machineNumber,
                                 IndRegID = item.IndRegID,
                                 DateTimeRecord = item.DateTimeRecord,
+                                DateTimeOriginal = newTime,
                                 DateOnlyRecord = item.DateOnlyRecord,
                                 TimeOnlyRecord = item.TimeOnlyRecord
                             });
@@ -192,6 +235,15 @@ namespace BioMetrixCore
                         //_db.Database.ExecuteSqlCommand("DELETE FROM [LogData] WHERE [MachineNumber] = " + machineNumber);
                         progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 6));
                         var authResponse = JsonConvert.DeserializeObject<LoginResonseCDS>(await GetToken(machine));
+
+                        if (authResponse.statusCode != "200")
+                        {
+                            string message = string.Format("Đăng nhập từ máy {0} ({1}) đến server thất bại", machineNumber, ipAddress);
+                            label.Invoke(new Action(() => label.Text = message));
+                            progressBar.Invoke(new Action(() => progressBar.SetState(2)));
+                            WriteLog(message);
+                            return new ThreadResult(machines[index], false);
+                        }
 
                         var token = authResponse.data.token;
 
@@ -209,13 +261,33 @@ namespace BioMetrixCore
                             progressBar.Invoke(new Action(() => progressBar.Value = 100));
                             label.Invoke(new Action(() => label.Text = string.Format("Cập nhật dữ liệu thành công cho máy {0} ({1})", machineNumber, ipAddress)));
                             // timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
+
+                            /* Fix LastTime for current machine 
+                            ==================================*/
+                            lock (_lockObject)
+                            {
+                                
+                                List<Machine> newMachines = machines;
+                                foreach (var x in newMachines)
+                                {
+                                    if (x.MachineNumber == machine.MachineNumber && x.IpAddress == machine.IpAddress && x.Port == machine.Port)
+                                    {
+                                        x.LastTime = SimpleScripter.encode(maxTime.ToString());
+                                    }
+                                }
+                                string json = JsonConvert.SerializeObject(newMachines, Formatting.Indented);
+                                File.WriteAllText("machines.json", json);
+                            }
+                            /*<============================== */
+
                             return new ThreadResult(machines[index], true);
                         }
                         else
                         {
-                            Console.WriteLine(originalResponse);
+                            string message = originalResponse;
                             label.Invoke(new Action(() => label.Text = string.Format("Không đẩy được dữ liệu từ máy {0} ({1}) đến server", machineNumber, ipAddress)));
                             progressBar.Invoke(new Action(() => progressBar.SetState(2)));
+                            WriteLog(message);
                             return new ThreadResult(machines[index], false);
                         }
                     }
@@ -228,7 +300,9 @@ namespace BioMetrixCore
                 }
                 else
                 {
-                    label.Invoke(new Action(() => label.Text = string.Format("Không thể kết nối tới máy {0} ({1}). Có thể đây không phải là máy chấm công ZKTeco", machineNumber, ipAddress)));
+                    string message = string.Format("Không thể kết nối tới máy {0} ({1}). Có thể đây không phải là máy chấm công ZKTeco", machineNumber, ipAddress);
+                    label.Invoke(new Action(() => label.Text = message));
+                    WriteLog(message);
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
                     // timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
                     Thread.Sleep(2000);
@@ -247,10 +321,8 @@ namespace BioMetrixCore
                     return new ThreadResult(machines[index], false, true);
                 }
 
-                lock (_lockObject)
-                {
-                    File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, ex.Message));
-                }
+                WriteLog(ex.Message);
+
                 return new ThreadResult(machines[index], false);
             }
         }
@@ -279,13 +351,13 @@ namespace BioMetrixCore
                 {
                     tenantCode = machine.TenantCode,
                     userName = machine.UserName,
-                    passWord = machine.Password
+                    passWord = SimpleScripter.decode(machine.Password)
                 };
 
                 StringContent content = new StringContent(JsonConvert.SerializeObject(loginRequestCDS),
                 Encoding.UTF8, "application/json");
 
-                HttpResponseMessage response = await client.PostAsync("http://core.vn:82/api/Authen/SignInPortalHR", content);
+                HttpResponseMessage response = await client.PostAsync(apiLoginUrl, content);
                 response.EnsureSuccessStatusCode();
                 string responseBody = await response.Content.ReadAsStringAsync();
                 // Above three lines can be replaced with new helper method below
@@ -319,7 +391,7 @@ namespace BioMetrixCore
                 string jsonBody = JsonConvert.SerializeObject(listForApi);
                 StringContent content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
                 client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-                HttpResponseMessage response = await client.PostAsync("http://core.vn:82/api/hr/TimeSheetMonthly/ImportSwipeMachine", content);
+                HttpResponseMessage response = await client.PostAsync(apiPostUrl, content);
                 response.EnsureSuccessStatusCode();
                 string responseBody = await response.Content.ReadAsStringAsync();
                 // Above three lines can be replaced with new helper method below
@@ -338,6 +410,15 @@ namespace BioMetrixCore
 
         private void PullDataToDb_Click(object sender, EventArgs e)
         {
+
+            var free = (from x in threadInfos where x.IsRunning select x).Count() == 0;
+
+            if (!free)
+            {
+                MessageBox.Show("Some threads are still running. Please wait");
+                return;
+            }
+
             PrepareThreadUI();
 
             int i = 0;
@@ -364,7 +445,7 @@ namespace BioMetrixCore
             //timerLabels.Clear();
             threadColors.Clear();
             btnSettings.Focus();
-            btnPullDataToDb.Enabled = false;
+            //btnPullDataToDb.Enabled = false;
 
             // Delete all existing ProgressBars and related Labels
             List<Control> controlList = new List<Control>();
@@ -437,7 +518,9 @@ namespace BioMetrixCore
             Machine machine = threadParameters.Machine;
             int i = threadParameters.Index;
 
+            threadInfos[i].IsRunning = true;
             var threadResult = await PullDataToDbThread(threadParameters);
+            threadInfos[i].IsRunning = false;
 
             threadParameters.Timer.Stop();
             //threadParameters.CountingTimer.Stop();
@@ -459,10 +542,7 @@ namespace BioMetrixCore
             }
             else
             {
-                lock (_lockObject)
-                {
-                    File.AppendAllText(@"Log.txt", string.Format($"SUCCESS! Timer for {threadResult.Machine.MachineNumber} ({threadResult.Machine.IpAddress}) was disposed!"));
-                }
+                WriteLog(string.Format($"SUCCESS! Timer for {threadResult.Machine.MachineNumber} ({threadResult.Machine.IpAddress}) was disposed!"));
             }
 
         }
@@ -659,5 +739,11 @@ namespace BioMetrixCore
         }
         */
         #endregion
+
+        private void btnMachines_Click(object sender, EventArgs e)
+        {
+            Machines machines = new Machines();
+            machines.ShowDialog();
+        }
     }
 }

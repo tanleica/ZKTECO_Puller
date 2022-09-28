@@ -18,7 +18,8 @@ namespace BioMetrixCore
         public int MachineNumber { get; set; }
         public int IndRegID { get; set; }
         public string DateTimeRecord { get; set; }
-        public System.DateTime DateOnlyRecord { get; set; }
-        public System.DateTime TimeOnlyRecord { get; set; }
+        public DateTime DateTimeOriginal { get; set; }
+        public DateTime DateOnlyRecord { get; set; }
+        public DateTime TimeOnlyRecord { get; set; }
     }
 }

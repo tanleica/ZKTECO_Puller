@@ -34,15 +34,17 @@
             this.buttonSave = new System.Windows.Forms.Button();
             this.numericUpDownTimer = new System.Windows.Forms.NumericUpDown();
             this.label1 = new System.Windows.Forms.Label();
-            this.mcStartingDate = new System.Windows.Forms.MonthCalendar();
-            this.labelStartingDate = new System.Windows.Forms.Label();
+            this.tbApiLoginUrl = new System.Windows.Forms.TextBox();
+            this.tbApiPostUrl = new System.Windows.Forms.TextBox();
+            this.label2 = new System.Windows.Forms.Label();
+            this.label3 = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownTimer)).BeginInit();
             this.SuspendLayout();
             // 
             // checkBoxAutoStart
             // 
             this.checkBoxAutoStart.AutoSize = true;
-            this.checkBoxAutoStart.Location = new System.Drawing.Point(335, 57);
+            this.checkBoxAutoStart.Location = new System.Drawing.Point(31, 29);
             this.checkBoxAutoStart.Name = "checkBoxAutoStart";
             this.checkBoxAutoStart.Size = new System.Drawing.Size(73, 17);
             this.checkBoxAutoStart.TabIndex = 0;
@@ -52,7 +54,7 @@
             // checkBoxRepeatWhenFails
             // 
             this.checkBoxRepeatWhenFails.AutoSize = true;
-            this.checkBoxRepeatWhenFails.Location = new System.Drawing.Point(335, 80);
+            this.checkBoxRepeatWhenFails.Location = new System.Drawing.Point(31, 52);
             this.checkBoxRepeatWhenFails.Name = "checkBoxRepeatWhenFails";
             this.checkBoxRepeatWhenFails.Size = new System.Drawing.Size(117, 17);
             this.checkBoxRepeatWhenFails.TabIndex = 1;
@@ -61,7 +63,7 @@
             // 
             // buttonSave
             // 
-            this.buttonSave.Location = new System.Drawing.Point(211, 254);
+            this.buttonSave.Location = new System.Drawing.Point(596, 240);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(107, 42);
             this.buttonSave.TabIndex = 2;
@@ -76,7 +78,7 @@
             0,
             0,
             0});
-            this.numericUpDownTimer.Location = new System.Drawing.Point(335, 144);
+            this.numericUpDownTimer.Location = new System.Drawing.Point(31, 116);
             this.numericUpDownTimer.Maximum = new decimal(new int[] {
             3600000,
             0,
@@ -91,7 +93,7 @@
             this.numericUpDownTimer.Size = new System.Drawing.Size(120, 20);
             this.numericUpDownTimer.TabIndex = 3;
             this.numericUpDownTimer.Value = new decimal(new int[] {
-            15000,
+            150000,
             0,
             0,
             0});
@@ -99,35 +101,54 @@
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(339, 124);
+            this.label1.Location = new System.Drawing.Point(35, 96);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(131, 13);
             this.label1.TabIndex = 4;
             this.label1.Text = "Repeat Timer (in seconds)";
             // 
-            // mcStartingDate
+            // tbApiLoginUrl
             // 
-            this.mcStartingDate.Location = new System.Drawing.Point(18, 55);
-            this.mcStartingDate.Name = "mcStartingDate";
-            this.mcStartingDate.TabIndex = 5;
+            this.tbApiLoginUrl.Location = new System.Drawing.Point(112, 169);
+            this.tbApiLoginUrl.Name = "tbApiLoginUrl";
+            this.tbApiLoginUrl.Size = new System.Drawing.Size(591, 20);
+            this.tbApiLoginUrl.TabIndex = 5;
             // 
-            // labelStartingDate
+            // tbApiPostUrl
             // 
-            this.labelStartingDate.AutoSize = true;
-            this.labelStartingDate.Location = new System.Drawing.Point(15, 33);
-            this.labelStartingDate.Name = "labelStartingDate";
-            this.labelStartingDate.Size = new System.Drawing.Size(69, 13);
-            this.labelStartingDate.TabIndex = 6;
-            this.labelStartingDate.Text = "Starting Date";
+            this.tbApiPostUrl.Location = new System.Drawing.Point(112, 195);
+            this.tbApiPostUrl.Name = "tbApiPostUrl";
+            this.tbApiPostUrl.Size = new System.Drawing.Size(591, 20);
+            this.tbApiPostUrl.TabIndex = 6;
+            // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Location = new System.Drawing.Point(28, 175);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(78, 13);
+            this.label2.TabIndex = 7;
+            this.label2.Text = "API Login URL";
+            // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Location = new System.Drawing.Point(28, 202);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(73, 13);
+            this.label3.TabIndex = 8;
+            this.label3.Text = "API Post URL";
             // 
             // Settings
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
-            this.ClientSize = new System.Drawing.Size(528, 308);
-            this.Controls.Add(this.labelStartingDate);
-            this.Controls.Add(this.mcStartingDate);
+            this.ClientSize = new System.Drawing.Size(715, 294);
+            this.Controls.Add(this.label3);
+            this.Controls.Add(this.label2);
+            this.Controls.Add(this.tbApiPostUrl);
+            this.Controls.Add(this.tbApiLoginUrl);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.numericUpDownTimer);
             this.Controls.Add(this.buttonSave);
@@ -154,7 +175,9 @@
         private System.Windows.Forms.Button buttonSave;
         private System.Windows.Forms.NumericUpDown numericUpDownTimer;
         private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.MonthCalendar mcStartingDate;
-        private System.Windows.Forms.Label labelStartingDate;
+        private System.Windows.Forms.TextBox tbApiLoginUrl;
+        private System.Windows.Forms.TextBox tbApiPostUrl;
+        private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.Label label3;
     }
 }

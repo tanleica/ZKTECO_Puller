@@ -110,7 +110,7 @@ namespace BioMetrixCore
 
 
 
-        public static void ChangeGridProperties(DataGridView dgvMaster)
+        public static void ChangeGridProperties(DataGridView dgvMaster, bool readOnly = true)
         {
             dgvMaster.DefaultCellStyle.Font = new Font("Segoe UI", 8F);
             dgvMaster.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -121,7 +121,8 @@ namespace BioMetrixCore
             foreach (DataGridViewColumn c in dgvMaster.Columns)
             {
                 c.Resizable = DataGridViewTriState.False;
-                c.ReadOnly = true;
+                c.ReadOnly = readOnly;
+                if (c.HeaderText == "LastTime") c.ReadOnly = true;
             }
             dgvMaster.AllowUserToOrderColumns = true;
             dgvMaster.BackgroundColor = SystemColors.Control;

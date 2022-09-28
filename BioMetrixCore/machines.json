@@ -3,24 +3,27 @@
     "MachineNumber": 1,
     "IpAddress": "192.168.60.222",
     "Port": 4370,
-    "tenantCode": "qtns",
-    "userName": "trangctt",
-    "passWord": "123456"
+    "LastTime": "",
+    "TenantCode": "qtns",
+    "UserName": "trangctt",
+    "Password": "MTIzNDU2"
   },
   {
     "MachineNumber": 2,
     "IpAddress": "192.168.60.223",
     "Port": 4370,
-    "tenantCode": "hlgroup",
-    "userName": "abc",
-    "passWord": "123456"
+    "LastTime": "",
+    "TenantCode": "hlgroup",
+    "UserName": "abc",
+    "Password": "MTIzNDU2"
   },
   {
     "MachineNumber": 3,
     "IpAddress": "192.168.60.224",
     "Port": 4370,
-    "tenantCode": "hlgroup",
-    "userName": "abc",
-    "passWord": "123456"
+    "LastTime": "",
+    "TenantCode": "hlgroup",
+    "UserName": "abc",
+    "Password": "MTIzNDU2"
   }
 ]

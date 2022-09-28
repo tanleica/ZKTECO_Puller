@@ -47,7 +47,7 @@ namespace BioMetrixCore
             return lstFPTemplates;
         }
 
-        public ICollection<MachineInfo> GetLogData(ZkemClient objZkeeper, int machineNumber)
+        public ICollection<MachineInfo> GetLogData(ZkemClient objZkeeper, int machineNumber, DateTime? lastTime = null)
         {
             string dwEnrollNumber1 = "";
             int dwVerifyMode = 0;
@@ -64,18 +64,40 @@ namespace BioMetrixCore
 
             objZkeeper.ReadAllGLogData(machineNumber);
 
-            while (objZkeeper.SSR_GetGeneralLogData(machineNumber, out dwEnrollNumber1, out dwVerifyMode, out dwInOutMode, out dwYear, out dwMonth, out dwDay, out dwHour, out dwMinute, out dwSecond, ref dwWorkCode))
-
-
+            /* NOT ALL ZKTECO MODEL FIRMWARES SUPPORT THIS METHOD */
+            /* Testing code:
+            try
             {
-                string inputDate = new DateTime(dwYear, dwMonth, dwDay, dwHour, dwMinute, dwSecond).ToString();
+                Console.WriteLine("ReadTimeGLogData === ", objZkeeper.ReadTimeGLogData(machineNumber, "2020-01-01 00:00:00", "2023-01-01 00:00:00"));
+            } catch
+            {
+                Console.WriteLine("Update the firmware needed");
+            }
+            */
 
-                MachineInfo objInfo = new MachineInfo();
-                objInfo.MachineNumber = machineNumber;
-                objInfo.IndRegID = int.Parse(dwEnrollNumber1);
-                objInfo.DateTimeRecord = inputDate;
+            while (objZkeeper.SSR_GetGeneralLogData(machineNumber, out dwEnrollNumber1, out dwVerifyMode, out dwInOutMode, out dwYear, out dwMonth, out dwDay, out dwHour, out dwMinute, out dwSecond, ref dwWorkCode))
+            {
+                DateTime currentMoment = new DateTime(dwYear, dwMonth, dwDay, dwHour, dwMinute, dwSecond);
+                string inputDate = currentMoment.ToString();
 
-                lstEnrollData.Add(objInfo);
+                if (lastTime != null)
+                {
+                    if (currentMoment >= lastTime)
+                    {
+                        MachineInfo objInfo = new MachineInfo();
+                        objInfo.MachineNumber = machineNumber;
+                        objInfo.IndRegID = int.Parse(dwEnrollNumber1);
+                        objInfo.DateTimeRecord = inputDate;
+                        lstEnrollData.Add(objInfo);
+                    }
+                } else
+                {
+                    MachineInfo objInfo = new MachineInfo();
+                    objInfo.MachineNumber = machineNumber;
+                    objInfo.IndRegID = int.Parse(dwEnrollNumber1);
+                    objInfo.DateTimeRecord = inputDate;
+                    lstEnrollData.Add(objInfo);
+                }
             }
 
             return lstEnrollData;

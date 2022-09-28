@@ -38,6 +38,7 @@
             this.btnCheckConfigSecurity = new System.Windows.Forms.Button();
             this.panel1 = new System.Windows.Forms.Panel();
             this.panel2 = new System.Windows.Forms.Panel();
+            this.btnMachines = new System.Windows.Forms.Button();
             this.pnlHeader.SuspendLayout();
             this.flowLayoutPanel1.SuspendLayout();
             this.panel1.SuspendLayout();
@@ -82,6 +83,7 @@
             this.flowLayoutPanel1.AutoSize = true;
             this.flowLayoutPanel1.Controls.Add(this.btnPullDataToDb);
             this.flowLayoutPanel1.Controls.Add(this.btnSettings);
+            this.flowLayoutPanel1.Controls.Add(this.btnMachines);
             this.flowLayoutPanel1.Controls.Add(this.btnCheckConfigSecurity);
             this.flowLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Top;
             this.flowLayoutPanel1.Location = new System.Drawing.Point(0, 0);
@@ -113,7 +115,7 @@
             // 
             this.btnCheckConfigSecurity.Dock = System.Windows.Forms.DockStyle.Right;
             this.btnCheckConfigSecurity.Enabled = false;
-            this.btnCheckConfigSecurity.Location = new System.Drawing.Point(222, 3);
+            this.btnCheckConfigSecurity.Location = new System.Drawing.Point(303, 3);
             this.btnCheckConfigSecurity.Name = "btnCheckConfigSecurity";
             this.btnCheckConfigSecurity.Size = new System.Drawing.Size(140, 41);
             this.btnCheckConfigSecurity.TabIndex = 896;
@@ -141,6 +143,16 @@
             this.panel2.Name = "panel2";
             this.panel2.Size = new System.Drawing.Size(612, 277);
             this.panel2.TabIndex = 1;
+            // 
+            // btnMachines
+            // 
+            this.btnMachines.Location = new System.Drawing.Point(222, 3);
+            this.btnMachines.Name = "btnMachines";
+            this.btnMachines.Size = new System.Drawing.Size(75, 41);
+            this.btnMachines.TabIndex = 898;
+            this.btnMachines.Text = "Machines";
+            this.btnMachines.UseVisualStyleBackColor = true;
+            this.btnMachines.Click += new System.EventHandler(this.btnMachines_Click);
             // 
             // Master
             // 
@@ -179,6 +191,7 @@
         private System.Windows.Forms.Button btnCheckConfigSecurity;
         private System.Windows.Forms.Panel panel2;
         private System.Windows.Forms.Button btnSettings;
+        private System.Windows.Forms.Button btnMachines;
     }
 }
 
