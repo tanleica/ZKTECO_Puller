@@ -111,6 +111,7 @@
             // 
             this.tbApiLoginUrl.Location = new System.Drawing.Point(112, 169);
             this.tbApiLoginUrl.Name = "tbApiLoginUrl";
+            this.tbApiLoginUrl.PasswordChar = '*';
             this.tbApiLoginUrl.Size = new System.Drawing.Size(591, 20);
             this.tbApiLoginUrl.TabIndex = 5;
             // 
@@ -118,6 +119,7 @@
             // 
             this.tbApiPostUrl.Location = new System.Drawing.Point(112, 195);
             this.tbApiPostUrl.Name = "tbApiPostUrl";
+            this.tbApiPostUrl.PasswordChar = '*';
             this.tbApiPostUrl.Size = new System.Drawing.Size(591, 20);
             this.tbApiPostUrl.TabIndex = 6;
             // 

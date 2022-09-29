@@ -1,4 +1,5 @@
-﻿using System;
+﻿using BioMetrixCore.Info;
+using System;
 using System.Configuration;
 using System.Windows.Forms;
 
@@ -22,9 +23,9 @@ namespace BioMetrixCore
             config.AppSettings.Settings.Remove("autoRepeatTimer");
             config.AppSettings.Settings.Add("autoRepeatTimer", numericUpDownTimer.Value.ToString());
             config.AppSettings.Settings.Remove("apiLoginUrl");
-            config.AppSettings.Settings.Add("apiLoginUrl", tbApiLoginUrl.Text);
+            config.AppSettings.Settings.Add("apiLoginUrl", SimpleScripter.encode(tbApiLoginUrl.Text));
             config.AppSettings.Settings.Remove("apiPostUrl");
-            config.AppSettings.Settings.Add("apiPostUrl", tbApiPostUrl.Text);
+            config.AppSettings.Settings.Add("apiPostUrl", SimpleScripter.encode(tbApiPostUrl.Text));
 
             config.Save(ConfigurationSaveMode.Modified);
             this.Dispose();
@@ -32,7 +33,6 @@ namespace BioMetrixCore
 
         private void Settings_Load(object sender, EventArgs e)
         {
-            string startingDate = ConfigurationManager.AppSettings["startingDate"];
             string autoStart = ConfigurationManager.AppSettings["autoStart"];
             string autoRepeatWhenFails = ConfigurationManager.AppSettings["autoRepeatWhenFails"];
             string autoRepeatTimer = ConfigurationManager.AppSettings["autoRepeatTimer"];
@@ -43,8 +43,8 @@ namespace BioMetrixCore
             checkBoxRepeatWhenFails.Checked = autoRepeatWhenFails == "True" ? true : false;
             // Timeout value: minimum = 15000 (15 seconds), maximum = 3600000 (1 hour)
             numericUpDownTimer.Value = autoRepeatTimer == null? 150000 : (int)Convert.ToDecimal(autoRepeatTimer);
-            tbApiLoginUrl.Text = apiLoginUrl == null? "http://core.vn:82/api/Authen/SignInPortalHR" : apiLoginUrl;
-            tbApiPostUrl.Text = apiPostUrl == null ? "http://core.vn:82/api/hr/TimeSheetMonthly/ImportSwipeMachine" : apiPostUrl;
+            tbApiLoginUrl.Text = apiLoginUrl == null? "http://core.vn:82/api/Authen/SignInPortalHR" : SimpleScripter.decode(apiLoginUrl);
+            tbApiPostUrl.Text = apiPostUrl == null ? "http://core.vn:82/api/hr/TimeSheetMonthly/ImportSwipeMachine" : SimpleScripter.decode(apiPostUrl);
 
             ConfigurationManager.RefreshSection("appSettings");
         }

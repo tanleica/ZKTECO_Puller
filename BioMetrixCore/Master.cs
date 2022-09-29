@@ -186,6 +186,7 @@ namespace BioMetrixCore
                     DeviceManipulator newManipulator = new DeviceManipulator();
                     string deviceInfo = newManipulator.FetchDeviceInfo(newZkeeper, machineNumber);
                     label.Invoke(new Action(() => label.Text = string.Format("Máy {0} ({1}) đã được kết nối. Tên máy: {2} !!", machineNumber, ipAddress, deviceInfo)));
+                    Thread.Sleep(2000);
 
                     // STEP 4
                     // Pulling data
@@ -193,7 +194,7 @@ namespace BioMetrixCore
                     ICollection<MachineInfo> lstMachineInfo;
                     if (machine.LastTime != "")
                     {
-                        lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber, DateTime.Parse(machine.LastTime));
+                        lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber, DateTime.Parse(SimpleScripter.decode(machine.LastTime)));
                     } else
                     {
                         lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber);
@@ -320,7 +321,10 @@ namespace BioMetrixCore
                     Thread.Sleep(1000);
                     return new ThreadResult(machines[index], false, true);
                 }
-
+                label.Invoke(new Action(() => label.Text = string.Format("Lỗi hệ thống {0} ({1})", machineNumber, ipAddress)));
+                Thread.Sleep(5000);
+                label.Invoke(new Action(() => label.Text = ex.Message));
+                progressBar.Invoke(new Action(() => progressBar.SetState(2)));
                 WriteLog(ex.Message);
 
                 return new ThreadResult(machines[index], false);
