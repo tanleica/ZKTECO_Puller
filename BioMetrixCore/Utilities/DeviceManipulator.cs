@@ -82,7 +82,7 @@ namespace BioMetrixCore
 
                 if (lastTime != null)
                 {
-                    if (currentMoment >= lastTime)
+                    if (currentMoment > lastTime)
                     {
                         MachineInfo objInfo = new MachineInfo();
                         objInfo.MachineNumber = machineNumber;

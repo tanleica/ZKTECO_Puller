@@ -408,6 +408,9 @@ namespace BioMetrixCore
             {
                 Console.WriteLine("\nException Caught!");
                 Console.WriteLine("Message :{0} ", e.Message);
+                WriteLog(e.Message);
+                WriteLog(apiLoginUrl);
+                WriteLog(apiPostUrl);
                 return "{ statusCode: \"500\" }";
             }
         }
