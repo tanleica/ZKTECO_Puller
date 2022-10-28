@@ -15,6 +15,7 @@ using ProgressBar = System.Windows.Forms.ProgressBar;
 using Label = System.Windows.Forms.Label;
 using System.Threading.Tasks;
 using System.Text;
+using System.Diagnostics;
 
 namespace BioMetrixCore
 {
@@ -136,7 +137,7 @@ namespace BioMetrixCore
 
             // if you want to imitate a long thread
             // Thread.Sleep(600000);
-
+            string sDate = string.Empty;
             try
             {
 
@@ -211,8 +212,9 @@ namespace BioMetrixCore
                         // Preparing data
                         label.Invoke(new Action(() => label.Text = string.Format("Chuyển đổi dữ liệu cho máy {0} ({1})", machineNumber, ipAddress)));
                         List<LogData> list = new List<LogData>();
+                        sDate = lstMachineInfo.ElementAt(0).DateTimeRecord;
                         foreach (var item in lstMachineInfo)
-                        {
+                        {                           
                             DateTime newTime = DateTime.Parse(item.DateTimeRecord);
                             if (newTime > maxTime) maxTime = newTime;
                             list.Add(new LogData()
@@ -321,11 +323,18 @@ namespace BioMetrixCore
                     Thread.Sleep(1000);
                     return new ThreadResult(machines[index], false, true);
                 }
+
+                var st = new StackTrace();
+                var fr = st.GetFrame(0);
+
+                var lines = fr.GetFileLineNumber().ToString();
+
+
                 label.Invoke(new Action(() => label.Text = string.Format("Lỗi hệ thống {0} ({1})", machineNumber, ipAddress)));
                 Thread.Sleep(5000);
                 label.Invoke(new Action(() => label.Text = ex.Message));
                 progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                WriteLog(ex.Message);
+                WriteLog(ex.Message + '(' + sDate + ')' + "inline: " + lines);
 
                 return new ThreadResult(machines[index], false);
             }
