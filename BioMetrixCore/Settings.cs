@@ -28,6 +28,7 @@ namespace BioMetrixCore
             config.AppSettings.Settings.Add("apiPostUrl", SimpleScripter.encode(tbApiPostUrl.Text));
 
             config.Save(ConfigurationSaveMode.Modified);
+            MessageBox.Show("The change saved.");
             this.Dispose();
         }
 

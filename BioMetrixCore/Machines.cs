@@ -1,7 +1,6 @@
 ﻿using BioMetrixCore.Info;
 using Newtonsoft.Json;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -12,7 +11,7 @@ namespace BioMetrixCore
     public partial class Machines : Form
     {
 
-        private readonly List<Machine> machines;
+        private List<Machine> machines;
         public Machines()
         {
             InitializeComponent();
@@ -62,6 +61,7 @@ namespace BioMetrixCore
         private void btnSave_Click(object sender, EventArgs e)
         {
             List<Machine> newMachines = dgvMachines.DataSource as List<Machine>;
+            machines = newMachines;
             foreach (var machine in newMachines)
             {
                 machine.Password = SimpleScripter.encode(machine.Password);

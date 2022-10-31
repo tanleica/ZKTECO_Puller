@@ -62,14 +62,15 @@ namespace BioMetrixCore
                 autoRepeat = ConfigurationManager.AppSettings["autoRepeatWhenFails"] == "True";
 
                 string apiLoginUrlCfg = ConfigurationManager.AppSettings["apiLoginUrl"];
-                apiLoginUrl = apiLoginUrlCfg == null ? "http://core.vn:82/api/Authen/SignInPortalHR" : apiLoginUrlCfg;
+                apiLoginUrl = apiLoginUrlCfg == null ? "http://core.vn:82/api/Authen/SignInPortalHR" : SimpleScripter.decode(apiLoginUrlCfg);
                 string apiPostUrlCfg = ConfigurationManager.AppSettings["apiPostUrl"];
-                apiPostUrl = apiPostUrlCfg == null ? "http://core.vn:82/api/hr/TimeSheetMonthly/ImportSwipeMachine" : apiPostUrlCfg;
+                apiPostUrl = apiPostUrlCfg == null ? "http://core.vn:82/api/hr/TimeSheetMonthly/ImportSwipeMachine" : SimpleScripter.decode(apiPostUrlCfg);
 
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
+                WriteLog(ex.Message);
             }
         }
 
