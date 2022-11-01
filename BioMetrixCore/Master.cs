@@ -16,6 +16,7 @@ using Label = System.Windows.Forms.Label;
 using System.Threading.Tasks;
 using System.Text;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace BioMetrixCore
 {
@@ -193,15 +194,24 @@ namespace BioMetrixCore
                     // STEP 4
                     // Pulling data
                     label.Invoke(new Action(() => label.Text = string.Format("Đọc dữ liệu từ máy {0} ({1})", machineNumber, ipAddress)));
-                    ICollection<MachineInfo> lstMachineInfo;
-                    if (machine.LastTime != "")
+                    WriteLog(string.Format("Bắt đầu đọc dữ liệu từ máy {0} ({1})", machineNumber, ipAddress));
+                    ICollection<MachineInfo> lstMachineInfo = null;
+                    try
                     {
-                        lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber, DateTime.Parse(SimpleScripter.decode(machine.LastTime)));
-                    } else
-                    {
-                        lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber);
+                        if (machine.LastTime != "")
+                        {
+                            lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber, DateTime.Parse(SimpleScripter.decode(machine.LastTime)));
+                        } else
+                        {
+                            lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber);
+                        }
+                        progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 4));
                     }
-                    progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 4));
+                    catch (Exception ex)
+                    {
+                        WriteLog(ex.Message + " (reading failed)");
+                    }
+                    
 
                     if (lstMachineInfo != null && lstMachineInfo.Count > 0)
                     {
@@ -212,21 +222,42 @@ namespace BioMetrixCore
                         // STEP 5
                         // Preparing data
                         label.Invoke(new Action(() => label.Text = string.Format("Chuyển đổi dữ liệu cho máy {0} ({1})", machineNumber, ipAddress)));
+                        
                         List<LogData> list = new List<LogData>();
                         sDate = lstMachineInfo.ElementAt(0).DateTimeRecord;
-                        foreach (var item in lstMachineInfo)
-                        {                           
-                            DateTime newTime = DateTime.Parse(item.DateTimeRecord);
-                            if (newTime > maxTime) maxTime = newTime;
-                            list.Add(new LogData()
+                        try
+                        {
+                            foreach (var item in lstMachineInfo)
                             {
-                                MachineNumber = machineNumber,
-                                IndRegID = item.IndRegID,
-                                DateTimeRecord = item.DateTimeRecord,
-                                DateTimeOriginal = newTime,
-                                DateOnlyRecord = item.DateOnlyRecord,
-                                TimeOnlyRecord = item.TimeOnlyRecord
-                            });
+                                CultureInfo provider = CultureInfo.InvariantCulture;
+                                DateTime date = DateTime.Now;
+                                DateTime newTime;
+                                var kq = DateTime.TryParseExact(item.DateTimeRecord, "dd/MM/yyyy HH:mm:ss", provider, System.Globalization.DateTimeStyles.None, out date);
+                                if (kq)
+                                {
+                                    newTime = date;
+                                }
+                                else
+                                {
+                                    newTime = DateTime.Parse(item.DateTimeRecord);
+                                }
+
+                                //DateTime newTime = DateTime.Parse(item.DateTimeRecord);
+                                if (newTime > maxTime) maxTime = newTime;
+                                list.Add(new LogData()
+                                {
+                                    MachineNumber = machineNumber,
+                                    IndRegID = item.IndRegID,
+                                    DateTimeRecord = item.DateTimeRecord,
+                                    DateTimeOriginal = newTime,
+                                    DateOnlyRecord = item.DateOnlyRecord,
+                                    TimeOnlyRecord = item.TimeOnlyRecord
+                                });
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            WriteLog(ex.Message);
                         }
                         progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 5));
 
@@ -239,6 +270,8 @@ namespace BioMetrixCore
                         //_db.Database.ExecuteSqlCommand("DELETE FROM [LogData] WHERE [MachineNumber] = " + machineNumber);
                         progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 6));
                         var authResponse = JsonConvert.DeserializeObject<LoginResonseCDS>(await GetToken(machine));
+
+                        WriteLog("authResponse.statusCode: " + authResponse.statusCode);
 
                         if (authResponse.statusCode != "200")
                         {
@@ -254,9 +287,11 @@ namespace BioMetrixCore
                         // STEP 7
                         // Push data to db
                         label.Invoke(new Action(() => label.Text = string.Format("Đẩy dữ liệu của máy {0} ({1}) tới máy chủ", machineNumber, ipAddress)));
+                        WriteLog(string.Format("Đẩy dữ liệu của máy {0} ({1}) tới máy chủ", machineNumber, ipAddress));
 
                         //_db.BulkInsert(list);
                         var originalResponse = await PostApi(machine, list, token);
+                        WriteLog(originalResponse);
                         var response = JsonConvert.DeserializeObject<GeneralResponse>(originalResponse);
                         if (response.statusCode == "200")
                         {
@@ -327,15 +362,15 @@ namespace BioMetrixCore
 
                 var st = new StackTrace();
                 var fr = st.GetFrame(0);
-
                 var lines = fr.GetFileLineNumber().ToString();
+                WriteLog(ex.Message + " (" + sDate + ')' + " inline: " + lines);
 
 
                 label.Invoke(new Action(() => label.Text = string.Format("Lỗi hệ thống {0} ({1})", machineNumber, ipAddress)));
                 Thread.Sleep(5000);
                 label.Invoke(new Action(() => label.Text = ex.Message));
                 progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                WriteLog(ex.Message + '(' + sDate + ')' + "inline: " + lines);
+                
 
                 return new ThreadResult(machines[index], false);
             }
