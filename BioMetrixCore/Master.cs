@@ -27,7 +27,7 @@ namespace BioMetrixCore
 
         static readonly HttpClient client = new HttpClient();
 
-        private List<ThreadInfo> threadInfos = new List<ThreadInfo>();  
+        private List<ThreadInfo> threadInfos = new List<ThreadInfo>();
 
         private readonly List<Machine> machines;
         private readonly List<ProgressBarItem> progressBars = new List<ProgressBarItem>();
@@ -39,6 +39,11 @@ namespace BioMetrixCore
         private static int autoRepeatTimer;
         private readonly bool autoRepeat;
         const int counterWidth = 0 /*80*/;
+
+        // For catching error
+        private string encodedLastTime;
+        private string decodedLastTime;
+        //======================================
 
         private readonly string apiLoginUrl; // == null? "http://core.vn:82/api/Authen/SignInPortalHR" : apiLoginUrl;
         private readonly string apiPostUrl; // == null ? "http://core.vn:82/api/hr/TimeSheetMonthly/ImportSwipeMachine" : apiPostUrl;
@@ -152,7 +157,7 @@ namespace BioMetrixCore
                 bool isValidIpA = UniversalStatic.ValidateIP(ipAddress);
                 if (!isValidIpA)
                 {
-                    string message  = string.Format("Địa chỉ IP của máy {0} ({1})không hợp lệ", machineNumber, ipAddress);
+                    string message = string.Format("Địa chỉ IP của máy {0} ({1})không hợp lệ", machineNumber, ipAddress);
                     WriteLog(message);
                     label.Invoke(new Action(() => label.Text = message));
                     progressBar.Invoke(new Action(() => progressBar.SetState(2)));
@@ -195,144 +200,155 @@ namespace BioMetrixCore
                     // Pulling data
                     label.Invoke(new Action(() => label.Text = string.Format("Đọc dữ liệu từ máy {0} ({1})", machineNumber, ipAddress)));
                     WriteLog(string.Format("Bắt đầu đọc dữ liệu từ máy {0} ({1})", machineNumber, ipAddress));
+                    
+                    ReadResult readResult = null;
                     ICollection<MachineInfo> lstMachineInfo = null;
+                    
                     try
                     {
                         if (machine.LastTime != "")
                         {
-                            lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber, DateTime.Parse(SimpleScripter.decode(machine.LastTime)));
-                        } else
+                            WriteLog(string.Format("Machine {0} LastTime is {1} ({2})", machine.MachineNumber, machine.LastTime, SimpleScripter.decode(machine.LastTime)));
+                            encodedLastTime = machine.LastTime;
+                            decodedLastTime = SimpleScripter.decode(encodedLastTime);
+
+                            readResult = newManipulator.GetLogData(newZkeeper, machineNumber, DateTime.Parse(SimpleScripter.decode(machine.LastTime)));
+                            lstMachineInfo = readResult.MachineInfos;
+
+                        }
+                        else
                         {
-                            lstMachineInfo = newManipulator.GetLogData(newZkeeper, machineNumber);
+                            WriteLog(string.Format("Machine {0} 1-st time reading...", machine.MachineNumber));
+                            readResult = newManipulator.GetLogData(newZkeeper, machineNumber);
+                            lstMachineInfo = readResult.MachineInfos;
                         }
                         progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 4));
                     }
                     catch (Exception ex)
                     {
                         WriteLog(ex.Message + " (reading failed)");
+                        WriteLog("encodedLastTime: " + encodedLastTime);
+                        WriteLog("decodedLastTime: " + decodedLastTime + " => Error");
                     }
-                    
 
-                    if (lstMachineInfo != null && lstMachineInfo.Count > 0)
+                    if (readResult.Success)
                     {
-                        label.Invoke(new Action(() => label.Text = string.Format("Đọc được {0} dòng từ máy {1} ({2})", lstMachineInfo.Count, machineNumber, ipAddress)));
-
-                        Thread.Sleep(1000);
-
-                        // STEP 5
-                        // Preparing data
-                        label.Invoke(new Action(() => label.Text = string.Format("Chuyển đổi dữ liệu cho máy {0} ({1})", machineNumber, ipAddress)));
-                        
-                        List<LogData> list = new List<LogData>();
-                        sDate = lstMachineInfo.ElementAt(0).DateTimeRecord;
-                        try
+                        if (lstMachineInfo != null && lstMachineInfo.Count > 0)
                         {
-                            foreach (var item in lstMachineInfo)
+                            label.Invoke(new Action(() => label.Text = string.Format("Đọc được {0} dòng từ máy {1} ({2})", lstMachineInfo.Count, machineNumber, ipAddress)));
+
+                            Thread.Sleep(1000);
+
+                            // STEP 5
+                            // Preparing data
+                            label.Invoke(new Action(() => label.Text = string.Format("Chuyển đổi dữ liệu cho máy {0} ({1})", machineNumber, ipAddress)));
+
+                            List<LogData> list = new List<LogData>();
+                            sDate = lstMachineInfo.ElementAt(0).DateTimeRecord;
+                            try
                             {
-                                CultureInfo provider = CultureInfo.InvariantCulture;
-                                DateTime date = DateTime.Now;
-                                DateTime newTime;
-                                var kq = DateTime.TryParseExact(item.DateTimeRecord, "dd/MM/yyyy HH:mm:ss", provider, System.Globalization.DateTimeStyles.None, out date);
-                                if (kq)
+                                foreach (var item in lstMachineInfo)
                                 {
-                                    newTime = date;
-                                }
-                                else
-                                {
-                                    newTime = DateTime.Parse(item.DateTimeRecord);
-                                }
-
-                                //DateTime newTime = DateTime.Parse(item.DateTimeRecord);
-                                if (newTime > maxTime) maxTime = newTime;
-                                list.Add(new LogData()
-                                {
-                                    MachineNumber = machineNumber,
-                                    IndRegID = item.IndRegID,
-                                    DateTimeRecord = item.DateTimeRecord,
-                                    DateTimeOriginal = newTime,
-                                    DateOnlyRecord = item.DateOnlyRecord,
-                                    TimeOnlyRecord = item.TimeOnlyRecord
-                                });
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            WriteLog(ex.Message);
-                        }
-                        progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 5));
-
-                        // ZKTECOEntities _db = new ZKTECOEntities();
-
-                        // STEP 6
-                        // Delete old data
-                        // label.Invoke(new Action(() => label.Text = string.Format("Xóa dữ liệu cũ từ CSDL của máy {0} ({1})", machineNumber, ipAddress)));
-                        label.Invoke(new Action(() => label.Text = string.Format("Lấy mã đăng nhập cho máy {0} ({1})", machineNumber, ipAddress)));
-                        //_db.Database.ExecuteSqlCommand("DELETE FROM [LogData] WHERE [MachineNumber] = " + machineNumber);
-                        progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 6));
-                        var authResponse = JsonConvert.DeserializeObject<LoginResonseCDS>(await GetToken(machine));
-
-                        WriteLog("authResponse.statusCode: " + authResponse.statusCode);
-
-                        if (authResponse.statusCode != "200")
-                        {
-                            string message = string.Format("Đăng nhập từ máy {0} ({1}) đến server thất bại", machineNumber, ipAddress);
-                            label.Invoke(new Action(() => label.Text = message));
-                            progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                            WriteLog(message);
-                            return new ThreadResult(machines[index], false);
-                        }
-
-                        var token = authResponse.data.token;
-
-                        // STEP 7
-                        // Push data to db
-                        label.Invoke(new Action(() => label.Text = string.Format("Đẩy dữ liệu của máy {0} ({1}) tới máy chủ", machineNumber, ipAddress)));
-                        WriteLog(string.Format("Đẩy dữ liệu của máy {0} ({1}) tới máy chủ", machineNumber, ipAddress));
-
-                        //_db.BulkInsert(list);
-                        var originalResponse = await PostApi(machine, list, token);
-                        WriteLog(originalResponse);
-                        var response = JsonConvert.DeserializeObject<GeneralResponse>(originalResponse);
-                        if (response.statusCode == "200")
-                        {
-                            //_db.LogDatas.AddRange(list);
-                            //_db.SaveChanges();
-                            progressBar.Invoke(new Action(() => progressBar.Value = 100));
-                            label.Invoke(new Action(() => label.Text = string.Format("Cập nhật dữ liệu thành công cho máy {0} ({1})", machineNumber, ipAddress)));
-                            // timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
-
-                            /* Fix LastTime for current machine 
-                            ==================================*/
-                            lock (_lockObject)
-                            {
-                                
-                                List<Machine> newMachines = machines;
-                                foreach (var x in newMachines)
-                                {
-                                    if (x.MachineNumber == machine.MachineNumber && x.IpAddress == machine.IpAddress && x.Port == machine.Port)
+                                    DateTime newTime = DateTime.Parse(item.DateTimeRecord);
+                                    if (newTime > maxTime)
                                     {
-                                        x.LastTime = SimpleScripter.encode(maxTime.ToString());
+                                        maxTime = newTime;
                                     }
-                                }
-                                string json = JsonConvert.SerializeObject(newMachines, Formatting.Indented);
-                                File.WriteAllText("machines.json", json);
-                            }
-                            /*<============================== */
 
-                            return new ThreadResult(machines[index], true);
+                                    list.Add(new LogData()
+                                    {
+                                        MachineNumber = machineNumber,
+                                        IndRegID = item.IndRegID,
+                                        DateTimeRecord = item.DateTimeRecord,
+                                        DateTimeOriginal = newTime,
+                                        DateOnlyRecord = item.DateOnlyRecord,
+                                        TimeOnlyRecord = item.TimeOnlyRecord
+                                    });
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                WriteLog(ex.Message);
+                            }
+                            progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 5));
+
+                            // ZKTECOEntities _db = new ZKTECOEntities();
+
+                            // STEP 6
+                            // Delete old data
+                            // label.Invoke(new Action(() => label.Text = string.Format("Xóa dữ liệu cũ từ CSDL của máy {0} ({1})", machineNumber, ipAddress)));
+                            label.Invoke(new Action(() => label.Text = string.Format("Lấy mã đăng nhập cho máy {0} ({1})", machineNumber, ipAddress)));
+                            //_db.Database.ExecuteSqlCommand("DELETE FROM [LogData] WHERE [MachineNumber] = " + machineNumber);
+                            progressBar.Invoke(new Action(() => progressBar.Value = 100 / 8 * 6));
+                            var authResponse = JsonConvert.DeserializeObject<LoginResonseCDS>(await GetToken(machine));
+
+                            WriteLog("authResponse.statusCode: " + authResponse.statusCode);
+
+                            if (authResponse.statusCode != "200")
+                            {
+                                string message = string.Format("Đăng nhập từ máy {0} ({1}) đến server thất bại", machineNumber, ipAddress);
+                                label.Invoke(new Action(() => label.Text = message));
+                                progressBar.Invoke(new Action(() => progressBar.SetState(2)));
+                                WriteLog(message);
+                                return new ThreadResult(machines[index], false);
+                            }
+
+                            var token = authResponse.data.token;
+
+                            // STEP 7
+                            // Push data to db
+                            label.Invoke(new Action(() => label.Text = string.Format("Đẩy dữ liệu của máy {0} ({1}) tới máy chủ", machineNumber, ipAddress)));
+                            WriteLog(string.Format("Đẩy dữ liệu của máy {0} ({1}) tới máy chủ", machineNumber, ipAddress));
+
+                            //_db.BulkInsert(list);
+                            var originalResponse = await PostApi(machine, list, token);
+                            WriteLog(originalResponse);
+                            var response = JsonConvert.DeserializeObject<GeneralResponse>(originalResponse);
+                            if (response.statusCode == "200")
+                            {
+                                //_db.LogDatas.AddRange(list);
+                                //_db.SaveChanges();
+                                progressBar.Invoke(new Action(() => progressBar.Value = 100));
+                                label.Invoke(new Action(() => label.Text = string.Format("Cập nhật dữ liệu thành công cho máy {0} ({1})", machineNumber, ipAddress)));
+                                // timerLabel.Invoke(new Action(() => timerLabel.Text = ""));
+
+                                /* Fix LastTime for current machine 
+                                ==================================*/
+                                lock (_lockObject)
+                                {
+
+                                    List<Machine> newMachines = machines;
+                                    foreach (var x in newMachines)
+                                    {
+                                        if (x.MachineNumber == machine.MachineNumber && x.IpAddress == machine.IpAddress && x.Port == machine.Port)
+                                        {
+                                            x.LastTime = SimpleScripter.encode(maxTime.ToString());
+                                        }
+                                    }
+                                    string json = JsonConvert.SerializeObject(newMachines, Formatting.Indented);
+                                    File.WriteAllText("machines.json", json);
+                                }
+                                /*<============================== */
+
+                                return new ThreadResult(machines[index], true);
+                            }
+                            else
+                            {
+                                string message = originalResponse;
+                                label.Invoke(new Action(() => label.Text = string.Format("Không đẩy được dữ liệu từ máy {0} ({1}) đến server", machineNumber, ipAddress)));
+                                progressBar.Invoke(new Action(() => progressBar.SetState(2)));
+                                WriteLog(message);
+                                return new ThreadResult(machines[index], false);
+                            }
                         }
                         else
                         {
-                            string message = originalResponse;
-                            label.Invoke(new Action(() => label.Text = string.Format("Không đẩy được dữ liệu từ máy {0} ({1}) đến server", machineNumber, ipAddress)));
-                            progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                            WriteLog(message);
+                            label.Invoke(new Action(() => label.Text = string.Format("Máy {0} ({1}) không có dữ liệu hoặc dữ liệu mới", machineNumber, ipAddress)));
                             return new ThreadResult(machines[index], false);
                         }
-                    }
-                    else
+                    } else
                     {
-                        label.Invoke(new Action(() => label.Text = string.Format("Máy {0} ({1}) không có dữ liệu", machineNumber, ipAddress)));
+                        label.Invoke(new Action(() => label.Text = string.Format("Máy {0} ({1}) có lỗi dữ liệu bên trong", machineNumber, ipAddress)));
                         return new ThreadResult(machines[index], false);
                     }
 
@@ -370,7 +386,7 @@ namespace BioMetrixCore
                 Thread.Sleep(5000);
                 label.Invoke(new Action(() => label.Text = ex.Message));
                 progressBar.Invoke(new Action(() => progressBar.SetState(2)));
-                
+
 
                 return new ThreadResult(machines[index], false);
             }

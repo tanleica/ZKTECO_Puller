@@ -4,12 +4,21 @@
 ///
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace BioMetrixCore
 {
+    public class ReadResult
+    {
+        public bool Success { get; set; }
+        public ICollection<MachineInfo> MachineInfos { get; set; }
+
+    }
     internal class DeviceManipulator
     {
+
+        private static object _lockObject = new object();
 
         public ICollection<UserInfo> GetAllUserInfo(ZkemClient objZkeeper, int machineNumber)
         {
@@ -47,7 +56,8 @@ namespace BioMetrixCore
             return lstFPTemplates;
         }
 
-        public ICollection<MachineInfo> GetLogData(ZkemClient objZkeeper, int machineNumber, DateTime? lastTime = null)
+        //public ICollection<MachineInfo> GetLogData(ZkemClient objZkeeper, int machineNumber, DateTime? lastTime = null)
+        public ReadResult GetLogData(ZkemClient objZkeeper, int machineNumber, DateTime? lastTime = null)
         {
             string dwEnrollNumber1 = "";
             int dwVerifyMode = 0;
@@ -62,6 +72,7 @@ namespace BioMetrixCore
 
             ICollection<MachineInfo> lstEnrollData = new List<MachineInfo>();
 
+
             objZkeeper.ReadAllGLogData(machineNumber);
 
             /* NOT ALL ZKTECO MODEL FIRMWARES SUPPORT THIS METHOD */
@@ -75,32 +86,70 @@ namespace BioMetrixCore
             }
             */
 
-            while (objZkeeper.SSR_GetGeneralLogData(machineNumber, out dwEnrollNumber1, out dwVerifyMode, out dwInOutMode, out dwYear, out dwMonth, out dwDay, out dwHour, out dwMinute, out dwSecond, ref dwWorkCode))
+            lock (_lockObject)
             {
-                DateTime currentMoment = new DateTime(dwYear, dwMonth, dwDay, dwHour, dwMinute, dwSecond);
-                string inputDate = currentMoment.ToString();
-
-                if (lastTime != null)
-                {
-                    if (currentMoment > lastTime)
-                    {
-                        MachineInfo objInfo = new MachineInfo();
-                        objInfo.MachineNumber = machineNumber;
-                        objInfo.IndRegID = int.Parse(dwEnrollNumber1);
-                        objInfo.DateTimeRecord = inputDate;
-                        lstEnrollData.Add(objInfo);
-                    }
-                } else
-                {
-                    MachineInfo objInfo = new MachineInfo();
-                    objInfo.MachineNumber = machineNumber;
-                    objInfo.IndRegID = int.Parse(dwEnrollNumber1);
-                    objInfo.DateTimeRecord = inputDate;
-                    lstEnrollData.Add(objInfo);
-                }
+                File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, "Just before 'while (objZkeeper.SSR_GetGeneralLogData'"));
             }
 
-            return lstEnrollData;
+            try
+            {
+
+
+                while (objZkeeper.SSR_GetGeneralLogData(machineNumber, out dwEnrollNumber1, out dwVerifyMode, out dwInOutMode, out dwYear, out dwMonth, out dwDay, out dwHour, out dwMinute, out dwSecond, ref dwWorkCode))
+                {
+                    DateTime currentMoment = new DateTime(dwYear, dwMonth, dwDay, dwHour, dwMinute, dwSecond);
+                    string inputDate = currentMoment.ToString();
+
+                    if (lastTime != null)
+                    {
+                        if (currentMoment > lastTime)
+                        {
+                            if (int.TryParse(dwEnrollNumber1, out _))
+                            {
+                                MachineInfo objInfo = new MachineInfo();
+                                objInfo.MachineNumber = machineNumber;
+                                objInfo.IndRegID = int.Parse(dwEnrollNumber1);
+                                objInfo.DateTimeRecord = inputDate;
+                                lstEnrollData.Add(objInfo);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (int.TryParse(dwEnrollNumber1, out _))
+                        {
+                            MachineInfo objInfo = new MachineInfo();
+                            objInfo.MachineNumber = machineNumber;
+                            objInfo.IndRegID = int.Parse(dwEnrollNumber1);
+                            objInfo.DateTimeRecord = inputDate;
+                            lstEnrollData.Add(objInfo);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                lock (_lockObject)
+                {
+                    File.AppendAllText(@"Log.txt", string.Format("{0}: {1}\n", DateTime.UtcNow, ex.Message));
+                    File.AppendAllText(@"Log.txt", string.Format("{0}: Year={1} Month={2} Day={3}\n", DateTime.UtcNow, dwYear, dwMonth, dwDay));
+                    File.AppendAllText(@"Log.txt", string.Format("{0}: _dwEnrollNumber1 = {1}\n", DateTime.UtcNow, dwEnrollNumber1));
+                }
+
+                return new ReadResult()
+                {
+                    Success = false,
+                    MachineInfos = lstEnrollData
+                };
+
+
+            }
+
+            return new ReadResult()
+            {
+                Success = true,
+                MachineInfos = lstEnrollData
+            };
         }
 
         public ICollection<UserIDInfo> GetAllUserID(ZkemClient objZkeeper, int machineNumber)
