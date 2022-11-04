@@ -29,7 +29,7 @@ namespace BioMetrixCore
 
         private List<ThreadInfo> threadInfos = new List<ThreadInfo>();
 
-        private readonly List<Machine> machines;
+        private List<Machine> machines;
         private readonly List<ProgressBarItem> progressBars = new List<ProgressBarItem>();
         private readonly List<LabelItem> labels = new List<LabelItem>();
         //private readonly List<LabelItem> timerLabels = new List<LabelItem>();
@@ -326,6 +326,7 @@ namespace BioMetrixCore
                                         }
                                     }
                                     string json = JsonConvert.SerializeObject(newMachines, Formatting.Indented);
+                                    machines = newMachines;
                                     File.WriteAllText("machines.json", json);
                                 }
                                 /*<============================== */
@@ -418,6 +419,10 @@ namespace BioMetrixCore
                     userName = machine.UserName,
                     passWord = SimpleScripter.decode(machine.Password)
                 };
+
+                WriteLog("tenantCode " + machine.TenantCode);
+                WriteLog("tenantCode " + machine.UserName);
+                WriteLog("tenantCode " + SimpleScripter.decode(machine.Password));
 
                 StringContent content = new StringContent(JsonConvert.SerializeObject(loginRequestCDS),
                 Encoding.UTF8, "application/json");
