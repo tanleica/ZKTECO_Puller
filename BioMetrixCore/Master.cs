@@ -421,8 +421,9 @@ namespace BioMetrixCore
                 };
 
                 WriteLog("tenantCode " + machine.TenantCode);
-                WriteLog("tenantCode " + machine.UserName);
-                WriteLog("tenantCode " + SimpleScripter.decode(machine.Password));
+                WriteLog("userName " + machine.UserName);
+                WriteLog("passWord be4 decoding " + machine.Password);
+                WriteLog("passWord " + SimpleScripter.decode(machine.Password));
 
                 StringContent content = new StringContent(JsonConvert.SerializeObject(loginRequestCDS),
                 Encoding.UTF8, "application/json");

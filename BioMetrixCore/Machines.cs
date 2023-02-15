@@ -61,14 +61,16 @@ namespace BioMetrixCore
         private void btnSave_Click(object sender, EventArgs e)
         {
             List<Machine> newMachines = dgvMachines.DataSource as List<Machine>;
-            machines = newMachines;
             foreach (var machine in newMachines)
             {
                 machine.Password = SimpleScripter.encode(machine.Password);
+                if (machine.LastTime == null) machine.LastTime = "";
                 if (machine.LastTime != "") machine.LastTime = SimpleScripter.encode(machine.LastTime);
             }
+            machines = newMachines;
             string json = JsonConvert.SerializeObject(newMachines, Formatting.Indented);
             File.WriteAllText("machines.json", json);
+            this.Close();
         }
 
         private void btnAddNew_Click(object sender, EventArgs e)
